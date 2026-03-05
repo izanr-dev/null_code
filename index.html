@@ -522,7 +522,12 @@ builtins.input = custom_input
 
         async function manageSubscription() {
             try {
-                const res = await fetch(`${API_URL}/api/billing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: sessionUser.email }) });
+                const returnUrl = window.location.href.split('?')[0]; 
+                const res = await fetch(`${API_URL}/api/billing`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ email: sessionUser.email, return_url: returnUrl }) 
+                });
                 const data = await res.json();
                 if (res.ok && data.url) window.location.href = data.url;
                 else alert(data.detail || "Error loading billing portal.");

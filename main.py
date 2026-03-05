@@ -77,8 +77,8 @@ async def compile_code(request: Request):
         # 1. Comprobar limite de archivos / lineas y guardar
         file_record = db.create_file(user_id=user_id, filename=filename, pseudocode=pseudocode)
         
-        # 2. Comprobar limite diario de compilaciones (IA)
-        db.check_compilation_limit(user_id)
+        # 2. Comprobar limite diario de compilaciones (IA) y obtener el uso actual
+        current_uses = db.check_compilation_limit(user_id)
         
     except PermissionError as pe:
         raise HTTPException(403, str(pe))
@@ -89,15 +89,39 @@ async def compile_code(request: Request):
     if ia_response.get("status") == "success":
         db.update_file_translation(file_id=file_record["id"], translated_code=ia_response.get("code"))
 
+    # 4. Añadimos el contador al JSON de respuesta
+    ia_response["daily_compilations"] = current_uses
+
     return ia_response
 
 # --- STRIPE ---
 @app.post("/api/checkout")
 async def create_checkout(request: Request):
     data = await request.json()
-    session_data = pagos.create_checkout_session(data.get("email"), data.get("user_id"))
-    if session_data["status"] == "success": return {"url": session_data["url"]}
+    return_url = data.get("return_url") # La URL exacta donde esta el usuario
+    session_data = pagos.create_checkout_session(data.get("email"), data.get("user_id"), return_url)
+    
+    if session_data["status"] == "success": 
+        return {"url": session_data["url"]}
     raise HTTPException(500, "Error creating checkout session.")
+
+@app.get("/api/verify-session/{session_id}")
+async def verify_session(session_id: str):
+    """El frontend llama a esta ruta tras volver de pagar para validar el pago en tiempo real."""
+    session = pagos.get_checkout_session(session_id)
+    
+    if session and session.payment_status == "paid":
+        user_email = session.customer_details.email
+        customer_id = session.customer
+        sub_id = session.subscription
+        user_id = session.client_reference_id 
+        
+        if user_id:
+            # Actualizamos la BBDD inmediatamente sin esperar al webhook
+            db.update_stripe_data(user_email, customer_id, sub_id, "active", "premium")
+            return {"status": "success", "plan": "premium"}
+            
+    return {"status": "pending"}
 
 @app.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
@@ -116,3 +140,17 @@ async def stripe_webhook(request: Request):
                 status = "active", plan = "premium"
             )
     return JSONResponse(status_code=200, content={"status": "success"})
+
+@app.post("/api/billing")
+async def billing_portal(request: Request):
+    data = await request.json()
+    user = db.get_user_by_email(data.get("email"))
+    return_url = data.get("return_url") # Capturamos la URL exacta de Vercel
+    
+    if not user or not user.get("stripe_customer_id"):
+        raise HTTPException(400, "No active subscription found.")
+        
+    portal_url = pagos.create_customer_portal(user["stripe_customer_id"], return_url)
+    if portal_url: 
+        return {"url": portal_url}
+    raise HTTPException(500, "Error generating billing portal.")

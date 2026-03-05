@@ -59,12 +59,12 @@ class DatabaseManager:
         except Exception:
             return False
 
-    def check_compilation_limit(self, user_id: str) -> bool:
-        """Comprueba y actualiza los límites de compilación IA diarios."""
+    def check_compilation_limit(self, user_id: str) -> int:
+        """Comprueba, actualiza los límites diarios y devuelve el conteo actual."""
         user = self.supabase.table("users").select("plan, daily_compilations, last_compilation_date").eq("id", user_id).execute().data[0]
         
         if user['plan'] in ['premium', 'unlimited']:
-            return True # Sin límites
+            return 0 # Sin límites
             
         today_str = date.today().isoformat()
         
@@ -74,17 +74,19 @@ class DatabaseManager:
                 "daily_compilations": 1, 
                 "last_compilation_date": today_str
             }).eq("id", user_id).execute()
-            return True
+            return 1
             
-        # Si es el mismo día, comprobamos el límite de 5
+        # Si es el mismo día, comprobamos el límite
         if user.get('daily_compilations', 0) >= 5:
             raise PermissionError("Plan Free: You have reached your daily limit of 5 AI compilations.")
             
         # Si no ha llegado al límite, incrementamos
+        new_count = user.get('daily_compilations', 0) + 1
         self.supabase.table("users").update({
-            "daily_compilations": user.get('daily_compilations', 0) + 1
+            "daily_compilations": new_count
         }).eq("id", user_id).execute()
-        return True
+        
+        return new_count
 
     # ==========================================
     # GESTIÓN DE ARCHIVOS (Sin proyectos)
