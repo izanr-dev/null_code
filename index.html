@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NullCode IDE</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/darcula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #030303; --panel-bg: #0a0a0a; --border-color: #1f1f1f;
+            --text-main: #e0e0e0; --text-muted: #666666; --accent: #ffffff;
+            --premium: #d4af37; --premium-bg: rgba(212, 175, 55, 0.1);
+            --error: #ff4444; --sidebar-width: 250px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER */
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-color); }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px; margin-right: 15px; }
+        .btn-text { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 6px 12px; transition: 0.2s; font-size: 0.9rem; border-radius: 4px; }
+        .btn-text:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+        
+        /* DROPDOWN MENU */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content { display: none; position: absolute; background-color: var(--panel-bg); min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.8); z-index: 200; border: 1px solid var(--border-color); border-radius: 6px; top: 100%; left: 0; overflow: hidden; }
+        .dropdown-content a { color: var(--text-main); padding: 12px 16px; text-decoration: none; display: block; font-size: 0.85rem; transition: 0.2s; }
+        .dropdown-content a:hover { background-color: rgba(255,255,255,0.05); }
+        .dropdown:hover .dropdown-content { display: block; }
+        
+        /* CENTER BADGES */
+        .header-center { display: flex; align-items: center; gap: 15px; }
+        .premium-badge { display: none; background: var(--premium-bg); color: var(--premium); border: 1px solid var(--premium); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-unlock { display: none; background: var(--accent); color: var(--bg-color); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .btn-unlock:hover { background: #ccc; }
+
+        /* ACTIONS */
+        .actions { display: flex; gap: 12px; align-items: center; }
+        .actions button { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); padding: 7px 16px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;}
+        .actions button:hover:not(:disabled) { border-color: var(--text-muted); }
+        .btn-run { background: #141414 !important; }
+        .btn-compile { background: var(--accent) !important; color: var(--bg-color) !important; font-weight: 600; }
+        .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* MAIN LAYOUT */
+        main { display: flex; flex: 1; height: calc(100vh - 60px); }
+
+        /* SIDEBAR (Hidden by default) */
+        .sidebar { width: var(--sidebar-width); background: var(--panel-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; transition: 0.3s; }
+        .sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width)); }
+        
+        .sidebar-header { padding: 15px 20px; font-size: 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; font-weight: 600; }
+        .sidebar-tools { display: flex; gap: 8px; }
+        .btn-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; padding: 4px; border-radius: 4px;}
+        .btn-icon:hover { color: var(--accent); background: rgba(255,255,255,0.05);}
+        
+        .file-list { padding: 10px; flex: 1; overflow-y: auto; }
+        .file-item { padding: 8px 12px; font-size: 0.9rem; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; color: #a0a0a0; margin-bottom: 2px; }
+        .file-item:hover { background: rgba(255,255,255,0.03); color: var(--text-main); }
+        .file-item.active { background: rgba(255,255,255,0.08); color: var(--text-main); }
+
+        /* EDITOR */
+        .editor-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-color); border-right: 1px solid var(--border-color); min-width: 0; }
+        .editor-tools { padding: 10px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; }
+        .lang-select { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 5px 10px; border-radius: 4px; outline: none; font-size: 0.85rem; cursor: pointer; }
+        
+        .CodeMirror { flex: 1; background: transparent !important; height: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.05rem; line-height: 1.6; padding: 10px 0; }
+        .CodeMirror-gutters { background: transparent !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
+        .CodeMirror-linenumber { color: #555 !important; }
+
+        /* OUTPUT PANEL (Split Layout) */
+        .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--panel-bg); position: relative; min-width: 0;}
+        .btn-eye { position: absolute; top: 16px; right: 16px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 4px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; transition: 0.2s;}
+        .btn-eye:hover { color: var(--accent); border-color: var(--text-muted); background: rgba(255,255,255,0.05); }
+        
+        .output-scroll { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; }
+        #ui-container { margin-bottom: 15px; }
+        #console-output { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; color: #a8b2d1; }
+        
+        /* BOTTOM RIGHT QUARTER (Code Viewer) */
+        #code-viewer-container { display: none; height: 50%; border-top: 1px solid var(--border-color); background: #0c0c0c; flex-direction: column; }
+        #code-viewer-container.visible { display: flex; }
+        .viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: #111; border-bottom: 1px solid var(--border-color); }
+        .viewer-title { font-size: 0.8rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
+        .btn-copy { background: transparent; border: none; color: var(--accent); cursor: pointer; font-size: 0.85rem; padding: 4px 8px; border-radius: 4px; transition: 0.2s; display: flex; align-items: center; gap: 5px;}
+        .btn-copy:hover { background: rgba(255,255,255,0.1); }
+        #code-viewer { flex: 1; padding: 15px 24px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9rem; color: #569cd6; background: transparent; border: none; resize: none; outline: none; }
+
+        /* MODALS & CONTEXT MENU */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+        .modal-overlay.active { display: flex; }
+        
+        /* Ajuste para que el modal de Help pueda ser más ancho */
+        .modal-box { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: 8px; width: 380px; max-width: 90%; max-height: 90vh; overflow-y: auto; text-align: left; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-box.large { width: 600px; }
+        
+        .modal-box h3 { margin-bottom: 12px; font-weight: 600; font-size: 1.2rem; text-align: center;}
+        .modal-box p { font-size: 0.9rem; color: #aaa; line-height: 1.6; margin-bottom: 15px; }
+        .modal-box h4 { margin-top: 20px; margin-bottom: 10px; color: var(--text-main); font-size: 1.05rem; }
+        
+        .modal-box input { width: 100%; padding: 12px; background: var(--bg-color); border: 1px solid var(--border-color); color: white; margin-bottom: 15px; border-radius: 4px; outline: none; transition: 0.2s; }
+        .modal-box input:focus { border-color: var(--text-muted); }
+        .modal-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        .modal-buttons button { padding: 9px 18px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; }
+        .btn-primary { background: var(--accent); color: var(--bg-color); font-weight: 600; }
+        .btn-primary:hover { background: #ccc; }
+        .btn-secondary { background: #222; color: white; border: 1px solid var(--border-color) !important; }
+        .btn-secondary:hover { background: #333; }
+
+        .context-menu { display: none; position: absolute; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; z-index: 50; width: 150px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden; }
+        .context-menu.active { display: block; }
+        .context-menu div { padding: 10px 15px; font-size: 0.9rem; cursor: pointer; color: var(--text-main); transition: 0.2s; display: flex; align-items: center; gap: 8px;}
+        .context-menu div:hover { background: rgba(255,255,255,0.05); }
+        .context-menu .danger { color: var(--error); border-top: 1px solid var(--border-color); }
+        .context-menu .danger:hover { background: rgba(255, 68, 68, 0.1); }
+        
+        .loader { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: transparent; animation: spin 1s infinite; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Estilos específicos de Settings */
+        .settings-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 0.9rem;}
+        .settings-row:last-child { border-bottom: none; }
+        .settings-label { color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <input type="file" id="file-import" style="display: none;" onchange="handleImport(event)">
+
+    <header>
+        <div class="header-left">
+            <div class="logo">NullCode</div>
+            <button class="btn-text" onclick="toggleSidebar()">Explorer</button>
+            <button class="btn-text" onclick="openSettingsModal()">Settings</button>
+            
+            <div class="dropdown">
+                <button class="btn-text">Help ▾</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="openDocModal('about')">About NullCode</a>
+                    <a href="#" onclick="openDocModal('start')">How To Start</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="header-center">
+            <div id="premium-badge" class="premium-badge">Unlimited Mode</div>
+            <button id="btn-unlock" class="btn-unlock" onclick="unlockAll()">Unlock All</button>
+        </div>
+
+        <div class="actions">
+            <button id="btn-login" onclick="openAuthModal()">Login</button>
+            <button id="btn-run" class="btn-run" onclick="runCode()" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run
+            </button>
+            <button id="btn-compile" class="btn-compile" onclick="compileIdea()" disabled>Compile</button>
+        </div>
+    </header>
+
+    <main>
+        <aside class="sidebar hidden" id="sidebar">
+            <div class="sidebar-header">
+                <span>Files</span>
+                <div class="sidebar-tools">
+                    <button class="btn-icon" onclick="triggerImport()" title="Import File">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </button>
+                    <button class="btn-icon" onclick="openNewFileModal()" title="New File">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="file-list" id="file-list"></div>
+        </aside>
+
+        <div class="editor-container">
+            <div class="editor-tools">
+                <select id="lang-select" class="lang-select" onchange="toggleLanguageMode()">
+                    <option value="pseudocode">Natural Language</option>
+                    <option value="python">Python (Native)</option>
+                </select>
+            </div>
+            <textarea id="editor" spellcheck="false" placeholder="Write your logic here..."></textarea>
+        </div>
+
+        <div class="right-panel">
+            <button class="btn-eye" onclick="toggleCode()" title="Toggle Code Viewer">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+            
+            <div class="output-scroll">
+                <div id="ui-container"></div>
+                <div id="console-output"></div>
+            </div>
+
+            <div id="code-viewer-container">
+                <div class="viewer-header">
+                    <span class="viewer-title">Python Translation</span>
+                    <button class="btn-copy" onclick="copyCode()" id="copy-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy
+                    </button>
+                </div>
+                <textarea id="code-viewer" spellcheck="false" readonly></textarea>
+            </div>
+        </div>
+    </main>
+
+    <div class="context-menu" id="context-menu">
+        <div onclick="openRenameModal()">Rename</div>
+        <div onclick="handleExportContext()">Export</div>
+        <div class="danger" onclick="deleteSelectedFile()">Delete</div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-box" id="modal-box">
+            <h3 id="modal-title">Title</h3>
+            <div id="modal-body">
+                <p id="modal-msg" style="display:none;"></p>
+                <input type="text" id="modal-input" autocomplete="off" placeholder="">
+                <input type="password" id="modal-password" autocomplete="off" placeholder="Password" style="display:none; margin-top: 10px;">
+            </div>
+            <div class="modal-buttons" id="modal-buttons"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://personal-trainer-4pzv.onrender.com";
+        let pyodide = null;
+        let sessionUser = null; 
+        let files = [{ id: "temp-1", name: "main.pse", content: "" }];
+        let activeFileId = "temp-1";
+        
+        // DOM Elements
+        const btnRun = document.getElementById("btn-run");
+        const btnCompile = document.getElementById("btn-compile");
+        const uiContainer = document.getElementById("ui-container");
+        const consoleOutput = document.getElementById("console-output");
+        const codeViewerContainer = document.getElementById("code-viewer-container");
+        const codeViewer = document.getElementById("code-viewer");
+        const contextMenu = document.getElementById("context-menu");
+        const btnUnlock = document.getElementById("btn-unlock");
+        const premiumBadge = document.getElementById("premium-badge");
+        const langSelect = document.getElementById("lang-select");
+
+        // --- CODEMIRROR ---
+        let cmEditor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+            mode: "text/plain", theme: "darcula", lineNumbers: true, indentUnit: 4,
+            extraKeys: {
+                "Tab": function(cm) {
+                    if (langSelect.value === "python") cm.replaceSelection("    ", "end");
+                    else return CodeMirror.Pass;
+                }
+            }
+        });
+
+        cmEditor.on('change', () => {
+            const activeFile = files.find(f => f.id === activeFileId);
+            if (activeFile) activeFile.content = cmEditor.getValue();
+        });
+
+        // --- INIT & SESSION ---
+        window.onload = async () => {
+            const savedUser = localStorage.getItem("nullcode_user");
+            if (savedUser) sessionUser = JSON.parse(savedUser);
+            
+            // Comprobación Mágica de Stripe al volver del pago
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('session_id') && sessionUser) {
+                const sessionId = urlParams.get('session_id');
+                // Limpiamos la URL para que no quede fea
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Pedimos al backend que verifique el recibo en Stripe
+                try {
+                    const verifyRes = await fetch(`${API_URL}/api/verify-session/${sessionId}`);
+                    const verifyData = await verifyRes.json();
+                    
+                    if (verifyData.status === "success") {
+                        sessionUser.plan = "premium";
+                        localStorage.setItem("nullcode_user", JSON.stringify(sessionUser));
+                        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#ffffff', '#d4af37', '#888888'] });
+                    }
+                } catch (e) { console.error("Error verifying session"); }
+            }
+
+            updateAuthUI();
+            renderFiles();
+            
+            try {
+                pyodide = await loadPyodide();
+                toggleLanguageMode(); 
+            } catch (err) { printText("System failure loading engine.", "error"); }
+        };
+
+        function updateAuthUI() {
+            if (sessionUser) {
+                document.getElementById("btn-login").innerText = "Profile";
+                if (sessionUser.plan === "premium" || sessionUser.plan === "unlimited") {
+                    premiumBadge.style.display = "block"; btnUnlock.style.display = "none";
+                } else {
+                    premiumBadge.style.display = "none"; btnUnlock.style.display = "block";
+                }
+            } else {
+                document.getElementById("btn-login").innerText = "Login";
+                premiumBadge.style.display = "none"; btnUnlock.style.display = "none";
+            }
+        }
+
+        function toggleLanguageMode() {
+            if (!pyodide) return;
+            const isPython = langSelect.value === "python";
+            btnCompile.style.display = isPython ? "none" : "flex";
+            btnRun.disabled = !isPython && !codeViewer.value;
+            btnCompile.disabled = isPython;
+            cmEditor.setOption("mode", isPython ? "python" : "text/plain");
+        }
+
+        // --- RUN & COMPILE ---
+        async function compileIdea() {
+            const idea = cmEditor.getValue().trim();
+            if (!idea) return;
+
+            if (!sessionUser) { openAuthModal("login", "Please login to compile."); return; }
+
+            const today = new Date().toISOString().split('T')[0];
+            if (sessionUser.last_compilation_date !== today) {
+                sessionUser.daily_compilations = 0;
+                sessionUser.last_compilation_date = today;
+            }
+
+            if (sessionUser.plan === "free") {
+                if (idea.split('\n').length > 10) { showLimitModal("Free accounts are limited to 10 lines of code per file."); return; }
+                if (sessionUser.daily_compilations >= 5) { showLimitModal("You have reached your daily limit of 5 AI compilations. Please upgrade to Unlimited Mode."); return; }
+            }
+
+            clearOutputs();
+            setButtonsState(true, "Compiling...");
+            
+            const activeFile = files.find(f => f.id === activeFileId);
+            const payload = { user_id: sessionUser.id, filename: activeFile.name, pseudocode: idea };
+
+            try {
+                const response = await fetch(`${API_URL}/api/compile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) {
+                    const errDetail = (await response.json()).detail;
+                    if(errDetail.includes("daily limit") || errDetail.includes("Plan Free")) showLimitModal(errDetail);
+                    else throw new Error(errDetail);
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.daily_compilations !== undefined) {
+                    sessionUser.daily_compilations = data.daily_compilations;
+                    sessionUser.last_compilation_date = today;
+                    localStorage.setItem("nullcode_user", JSON.stringify(sessionUser));
+                }
+
+                if (data.status === "error") { printText(`AI Feedback: ${data.message}`, "ai"); return; }
+
+                codeViewer.value = data.code;
+                btnRun.disabled = false;
+                await executePython(data.code);
+
+            } catch (error) { printText(`Error: ${error.message}`, "error"); } 
+            finally { setButtonsState(false, "Compile"); }
+        }
+
+        async function runCode() {
+            clearOutputs();
+            let codeToRun = langSelect.value === "python" ? cmEditor.getValue().trim() : codeViewer.value.trim();
+            if (!codeToRun) return;
+            
+            if (langSelect.value === "python") codeViewer.value = codeToRun; 
+            
+            setButtonsState(true, "Running...", true);
+            await executePython(codeToRun);
+            setButtonsState(false, "Compile");
+            btnRun.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
+        }
+
+        async function executePython(code) {
+            try {
+                let localModules = [];
+                // 1. Sincronizar archivos al disco virtual de Pyodide y registrar sus nombres
+                files.forEach(f => { 
+                    try { 
+                        pyodide.FS.writeFile(f.name, f.content); 
+                        if(f.name.endsWith('.py')) {
+                            localModules.push(`'${f.name.replace('.py', '')}'`);
+                        }
+                    } catch(e){} 
+                });
+
+                // 2. Configurar Python: Añadir ruta actual, limpiar caché de módulos locales y configurar consola interactiva
+                const interceptorSetup = `
+import sys, io, builtins, js
+if '.' not in sys.path:
+    sys.path.insert(0, '.')
+
+# Limpiar caché de modulos locales para que los imports se actualicen si editas el archivo
+local_mods = [${localModules.join(',')}]
+for mod in local_mods:
+    if mod in sys.modules:
+        del sys.modules[mod]
+
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+async def custom_input(prompt_text=""):
+    return await js.window.terminal_input(prompt_text)
+builtins.input = custom_input
+`;
+                const fullExecutionCode = interceptorSetup + "\n" + code;
+                
+                await pyodide.loadPackagesFromImports(fullExecutionCode);
+                await pyodide.runPythonAsync(fullExecutionCode);
+                
+                const stdout = pyodide.runPython("sys.stdout.getvalue()");
+                const stderr = pyodide.runPython("sys.stderr.getvalue()");
+
+                if (stdout) printText(stdout, "output");
+                if (stderr) printText(stderr, "error");
+
+                syncPyodideFS();
+            } catch (err) { printText(err.message, "error"); }
+        }
+
+        function syncPyodideFS() {
+            try {
+                const currentDir = pyodide.FS.readdir('.');
+                let hitLimit = false;
+
+                for (const name of currentDir) {
+                    if (name === '.' || name === '..') continue;
+                    const stat = pyodide.FS.stat(name);
+                    if (pyodide.FS.isDir(stat.mode)) continue;
+
+                    const content = pyodide.FS.readFile(name, { encoding: "utf8" });
+                    const existingFile = files.find(f => f.name === name);
+
+                    if (existingFile) {
+                        if (existingFile.content !== content) {
+                            existingFile.content = content;
+                            if (activeFileId === existingFile.id) cmEditor.setValue(content);
+                        }
+                    } else {
+                        if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) {
+                            hitLimit = true;
+                        } else {
+                            const newId = `temp-${Date.now()}-${Math.random()}`;
+                            files.push({ id: newId, name: name, content: content });
+                        }
+                    }
+                }
+                if (hitLimit) showLimitModal("Your script generated new files, but Free accounts are limited to 3. Some were discarded.");
+                renderFiles();
+            } catch (e) { console.error("Error syncing virtual FS:", e); }
+        }
+
+        // --- NATIVE TERMINAL ---
+        window.custom_prompt = function(promptText) { return window.terminal_input(promptText); };
+        window.terminal_input = function(promptText) {
+            return new Promise((resolve) => {
+                const lineWrap = document.createElement("div");
+                lineWrap.style.display = "flex"; lineWrap.style.alignItems = "center"; lineWrap.style.marginTop = "4px"; lineWrap.style.fontFamily = "inherit"; 
+                
+                const promptSpan = document.createElement("span");
+                promptSpan.textContent = promptText; promptSpan.style.color = "#a8b2d1"; promptSpan.style.whiteSpace = "pre-wrap"; promptSpan.style.fontFamily = "inherit";
+                
+                const inputField = document.createElement("input");
+                inputField.type = "text"; inputField.style.background = "transparent"; inputField.style.border = "none"; inputField.style.color = "white"; inputField.style.outline = "none"; inputField.style.flex = "1"; inputField.style.fontFamily = "inherit"; inputField.style.fontSize = "inherit"; inputField.style.marginLeft = "8px";
+                
+                lineWrap.appendChild(promptSpan); lineWrap.appendChild(inputField); consoleOutput.appendChild(lineWrap);
+                document.querySelector(".output-scroll").scrollTop = document.querySelector(".output-scroll").scrollHeight;
+                inputField.focus();
+                
+                inputField.addEventListener("keydown", function(e) {
+                    if (e.key === "Enter") {
+                        const val = inputField.value;
+                        lineWrap.removeChild(inputField);
+                        const answerSpan = document.createElement("span");
+                        answerSpan.textContent = val; answerSpan.style.color = "#4caf50"; answerSpan.style.marginLeft = "8px";
+                        lineWrap.appendChild(answerSpan);
+                        resolve(val);
+                    }
+                });
+            });
+        };
+
+        // --- BILLING & SETTINGS ---
+        async function unlockAll() {
+            if (!sessionUser) { openAuthModal("login", "Please login to upgrade."); return; }
+            btnUnlock.innerText = "Processing...";
+            const returnUrl = window.location.href.split('?')[0]; 
+            try {
+                const res = await fetch(`${API_URL}/api/checkout`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ email: sessionUser.email, user_id: sessionUser.id, return_url: returnUrl }) 
+                });
+                const data = await res.json();
+                
+                // Si el servidor devuelve OK, vamos a Stripe. Si no, lanzamos el error.
+                if (res.ok && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    throw new Error(data.detail || "Error generating checkout. Check backend logs.");
+                }
+            } catch (error) { 
+                btnUnlock.innerText = "Unlock All"; 
+                alert("Stripe Error: " + error.message); // Ahora te avisará del error real
+            }
+        }
+
+        async function manageSubscription() {
+            try {
+                const res = await fetch(`${API_URL}/api/billing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: sessionUser.email }) });
+                const data = await res.json();
+                if (res.ok && data.url) window.location.href = data.url;
+                else alert(data.detail || "Error loading billing portal.");
+            } catch (error) { alert("Network error connecting to billing portal."); }
+        }
+
+        function openSettingsModal() {
+            if (!sessionUser) { openAuthModal("login", "Please login to view settings."); return; }
+            
+            const today = new Date().toISOString().split('T')[0];
+            let uses = (sessionUser.last_compilation_date === today) ? (sessionUser.daily_compilations || 0) : 0;
+            
+            let planHtml = sessionUser.plan === "free" 
+                ? `<span style="color:var(--text-main)">Free Plan</span>` 
+                : `<span style="color:var(--premium); font-weight:bold;">Premium (Unlimited)</span>`;
+
+            let usageHtml = sessionUser.plan === "free"
+                ? `${uses} / 5 (Resets at midnight)`
+                : `Unlimited`;
+
+            const bodyHtml = `
+                <div class="settings-row">
+                    <span class="settings-label">Account Email</span>
+                    <span>${sessionUser.email}</span>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Current Plan</span>
+                    ${planHtml}
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">Daily AI Uses</span>
+                    <span style="color:var(--text-main)">${usageHtml}</span>
+                </div>
+            `;
+
+            let buttons = [];
+            if (sessionUser.plan === "free") {
+                buttons.push({ text: "Upgrade to Premium", class: "btn-primary", action: unlockAll });
+            } else {
+                buttons.push({ text: "Manage Subscription", class: "btn-secondary", action: manageSubscription });
+            }
+            buttons.push({ text: "Log Out", class: "btn-secondary", action: () => { localStorage.clear(); location.reload(); } });
+            buttons.push({ text: "Close", class: "btn-secondary", action: closeModal });
+
+            openCustomModal("Account Settings", bodyHtml, buttons);
+        }
+
+        // --- DOCUMENTATION (HELP) (ENGLISH TEXTS) ---
+        function openDocModal(type) {
+            let title = "";
+            let bodyHtml = "";
+
+            if (type === "about") {
+                title = "About NullCode";
+                bodyHtml = `
+                    <p><strong>NullCode</strong> is a revolutionary platform designed to democratize software creation.</p>
+                    <p>Our goal is to break down the barrier to entry into the programming world, allowing anyone to conceptualize algorithms, create tools, and visualize data using only their <strong>natural language</strong>.</p>
+                    <p>Under the hood, we combine advanced artificial intelligence with a native browser execution engine to offer a professional, secure, and configuration-free development environment.</p>
+                `;
+            } else if (type === "start") {
+                title = "How To Start";
+                bodyHtml = `
+                    <h4>Natural Language vs Traditional Code</h4>
+                    <p>Traditional languages (Python, C, etc.) require strict syntax knowledge. In <strong>Natural Language</strong> mode, you use plain text. A highly complex internal algorithm analyzes your logical intentions step by step and seamlessly translates them into real machine code (Python in this version).</p>
+                    
+                    <h4>Compile vs Run</h4>
+                    <p><strong>Compile:</strong> Takes your Natural Language text, connects to our cognitive engine, and translates it into executable code. This process is highly complex and is therefore limited in the free version.</p>
+                    <p><strong>Run:</strong> Executes the code (whether translated or written by you in Python mode) locally and securely in your browser. This is 100% unlimited for all users.</p>
+                    
+                    <h4>Internal Memory & Explorer</h4>
+                    <p>The "Explorer" panel isn't just for show. When you compile or run, <strong>all your files sync with the virtual hard drive</strong> of your program. You can create a <code>data.txt</code> file and ask your code to read it, or import functions between files (e.g., <code>import utils</code>). If your program generates a text file or processes a CSV, it will automatically appear in the sidebar!</p>
+                `;
+            }
+
+            openCustomModal(title, bodyHtml, [{ text: "Close", class: "btn-primary", action: closeModal }], true);
+        }
+
+        // --- CORE MODAL SYSTEM ---
+        function showLimitModal(msg) {
+            openCustomModal("Limit Exceeded", `<p>${msg}</p>`, [
+                { text: "Unlock All", class: "btn-primary", action: unlockAll },
+                { text: "Cancel", class: "btn-secondary", action: closeModal }
+            ]);
+        }
+
+        function showModal(title, msg, showInput, showPassword, buttons, inputPlaceholder = "") {
+            const bodyHtml = `
+                <p id="modal-msg" style="${msg ? 'display:block;' : 'display:none;'}">${msg}</p>
+                <input type="text" id="modal-input" autocomplete="off" placeholder="${inputPlaceholder}" style="${showInput ? 'display:block;' : 'display:none;'}">
+                <input type="password" id="modal-password" autocomplete="off" placeholder="Password" style="${showPassword ? 'display:block;' : 'display:none;'} margin-top: 10px;">
+            `;
+            openCustomModal(title, bodyHtml, buttons, false, showInput);
+        }
+
+        function openCustomModal(title, bodyHtml, buttons, isLarge = false, focusInput = false) {
+            const modalBox = document.getElementById("modal-box");
+            if (isLarge) modalBox.classList.add("large"); else modalBox.classList.remove("large");
+            
+            document.getElementById("modal-title").innerText = title;
+            document.getElementById("modal-body").innerHTML = bodyHtml;
+            
+            const btnsEl = document.getElementById("modal-buttons"); 
+            btnsEl.innerHTML = "";
+            buttons.forEach(b => { 
+                const btn = document.createElement("button"); 
+                btn.innerText = b.text; btn.className = b.class; btn.onclick = b.action; 
+                btnsEl.appendChild(btn); 
+            });
+            
+            document.getElementById("modal-overlay").classList.add("active");
+            if (focusInput) setTimeout(() => document.getElementById("modal-input")?.focus(), 50);
+        }
+
+        function closeModal() { document.getElementById("modal-overlay").classList.remove("active"); }
+
+        // --- AUTH ---
+        function openAuthModal(mode = "login", overrideMsg = null) {
+            if(sessionUser) { openSettingsModal(); return; }
+            
+            const isLogin = mode === "login";
+            showModal(isLogin ? "Login" : "Sign Up", overrideMsg || (isLogin ? "Enter your credentials." : "Create account."), true, true, [
+                { text: isLogin ? "Login" : "Create Account", class: "btn-primary", action: () => handleAuth(mode) },
+                { text: isLogin ? "Need an account?" : "Have an account?", class: "btn-secondary", action: () => openAuthModal(isLogin ? "signup" : "login") },
+                { text: "Cancel", class: "btn-secondary", action: closeModal }
+            ], "Email"); 
+        }
+
+        async function handleAuth(type) {
+            const email = document.getElementById("modal-input").value.trim();
+            const password = document.getElementById("modal-password").value.trim();
+            if (!email || !password) return;
+            try {
+                const res = await fetch(`${API_URL}/api/auth/${type}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+                const data = await res.json();
+                if (res.status === 404 && type === "login") { openAuthModal("signup", "Account not found. Please create one."); return; }
+                if (!res.ok) throw new Error(data.detail);
+                
+                sessionUser = data;
+                localStorage.setItem("nullcode_user", JSON.stringify(sessionUser));
+                updateAuthUI(); closeModal();
+            } catch (err) {
+                const msgEl = document.getElementById("modal-msg"); msgEl.innerText = err.message; msgEl.style.color = "var(--error)"; msgEl.style.display = "block";
+            }
+        }
+
+        // --- UI TOOLS ---
+        function toggleSidebar() { document.getElementById("sidebar").classList.toggle("hidden"); }
+        function toggleCode() { codeViewerContainer.classList.toggle("visible"); }
+        
+        function copyCode() {
+            const code = codeViewer.value;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.getElementById("copy-btn");
+                btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+                setTimeout(() => btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy`, 2000);
+            });
+        }
+
+        function clearOutputs() { uiContainer.innerHTML = ""; consoleOutput.innerHTML = ""; }
+        function setButtonsState(disabled, compileText, isRun = false) {
+            btnCompile.disabled = disabled; btnRun.disabled = disabled;
+            if(!isRun) btnCompile.innerHTML = disabled ? `<span class='loader'></span> ${compileText}` : compileText;
+            if(isRun) btnRun.innerHTML = `<span class='loader'></span> ${compileText}`;
+            toggleLanguageMode(); 
+        }
+        function printText(text, type) {
+            const span = document.createElement("div");
+            span.style.color = type === "error" ? "var(--error)" : type === "ai" ? "#e5c07b" : "#a8b2d1";
+            span.textContent = text; consoleOutput.appendChild(span);
+            document.querySelector(".output-scroll").scrollTop = document.querySelector(".output-scroll").scrollHeight;
+        }
+
+        // --- FILES (Import / Export / Manage) ---
+        function renderFiles() {
+            const list = document.getElementById("file-list");
+            list.innerHTML = "";
+            files.forEach(f => {
+                const el = document.createElement("div");
+                el.className = `file-item ${f.id === activeFileId ? "active" : ""}`;
+                el.innerText = f.name;
+                el.onclick = () => { activeFileId = f.id; cmEditor.setValue(f.content); renderFiles(); };
+                el.oncontextmenu = (e) => showContextMenu(e, f);
+                list.appendChild(el);
+            });
+        }
+
+        let contextFile = null;
+        function showContextMenu(e, file) { e.preventDefault(); contextFile = file; contextMenu.style.left = `${e.pageX}px`; contextMenu.style.top = `${e.pageY}px`; contextMenu.classList.add("active"); }
+        document.addEventListener("click", () => contextMenu.classList.remove("active"));
+
+        function openNewFileModal() {
+            if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) { showLimitModal("Free accounts are limited to 3 files simultaneously."); return; }
+            showModal("New File", "Enter filename (e.g., config.txt)", true, false, [
+                { text: "Create", class: "btn-primary", action: () => {
+                    const name = document.getElementById("modal-input").value.trim();
+                    if(name) { const newId = `temp-${Date.now()}`; files.push({ id: newId, name: name, content: "" }); activeFileId = newId; cmEditor.setValue(""); renderFiles(); }
+                    closeModal(); 
+                }}, { text: "Cancel", class: "btn-secondary", action: closeModal }
+            ], "filename.pse"); 
+        }
+
+        function openRenameModal() {
+            showModal("Rename File", `Rename ${contextFile.name} to:`, true, false, [
+                { text: "Save", class: "btn-primary", action: () => { 
+                    const newName = document.getElementById("modal-input").value.trim();
+                    if(newName) { contextFile.name = newName; renderFiles(); }
+                    closeModal(); 
+                }}, { text: "Cancel", class: "btn-secondary", action: closeModal }
+            ], "new_name.txt"); 
+        }
+
+        function deleteSelectedFile() {
+            if (files.length <= 1) { showModal("Error", "You cannot delete the last remaining file.", false, false, [{text: "OK", class: "btn-secondary", action: closeModal}]); return; }
+            showModal("Delete File", `Delete ${contextFile.name}?`, false, false, [
+                { text: "Delete", class: "btn-primary", action: () => { 
+                    files = files.filter(f => f.id !== contextFile.id);
+                    if(activeFileId === contextFile.id) { activeFileId = files[0].id; cmEditor.setValue(files[0].content); }
+                    renderFiles(); closeModal(); 
+                }}, { text: "Cancel", class: "btn-secondary", action: closeModal }
+            ]);
+        }
+
+        function triggerImport() {
+            if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) {
+                showLimitModal("Free accounts are limited to 3 files simultaneously. Please upgrade to import more."); return;
+            }
+            document.getElementById("file-import").click();
+        }
+
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const newId = `temp-${Date.now()}`;
+                files.push({ id: newId, name: file.name, content: e.target.result });
+                activeFileId = newId; cmEditor.setValue(e.target.result); renderFiles(); event.target.value = ""; 
+            };
+            reader.readAsText(file);
+        }
+
+        function handleExportContext() {
+            const blob = new Blob([contextFile.content], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = contextFile.name;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
