@@ -14,9 +14,13 @@ class StripeManager:
 
     def create_checkout_session(self, user_email: str, user_id: str, return_url: str = None) -> dict:
         try:
-            # Usamos la URL del frontend si nos la pasa, si no, la por defecto
-            success_url = f"{return_url}?session_id={{CHECKOUT_SESSION_ID}}" if return_url else f"{self.domain_url}/success?session_id={{CHECKOUT_SESSION_ID}}"
-            cancel_url = return_url if return_url else f"{self.domain_url}/cancel"
+            # Aseguramos que la URL base es la correcta y le quitamos la barra final si la tiene
+            base_url = return_url if return_url else self.domain_url
+            base_url = base_url.rstrip('/')
+
+            # FORZAMOS a que vuelva a la raíz (index.html) para que Vercel no de 404
+            success_url = f"{base_url}/?session_id={{CHECKOUT_SESSION_ID}}"
+            cancel_url = f"{base_url}/"
 
             session = stripe.checkout.Session.create(
                 customer_email = user_email,
@@ -43,9 +47,12 @@ class StripeManager:
 
     def create_customer_portal(self, customer_id: str, return_url: str = None) -> str:
         try:
+            base_url = return_url if return_url else self.domain_url
+            base_url = base_url.rstrip('/')
+            
             session = stripe.billing_portal.Session.create(
                 customer = customer_id,
-                return_url = return_url if return_url else self.domain_url
+                return_url = base_url
             )
             return session.url
         except Exception as e:
