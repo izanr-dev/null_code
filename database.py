@@ -1,9 +1,6 @@
 import os
-from supabase import create_client, Client
-from dotenv import load_dotenv
-
-import os
 import bcrypt
+from datetime import date
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -17,22 +14,18 @@ class DatabaseManager:
         self.supabase: Client = create_client(url, key)
 
     # ==========================================
-    # USUARIOS Y STRIPE
+    # USUARIOS, LÍMITES Y STRIPE
     # ==========================================
     def create_user(self, email: str, password: str) -> dict:
         try:
-            # Encrypt the password before saving it to the database
             salt = bcrypt.gensalt()
             hashed_pw = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
             
-            response = self.supabase.table("users").insert(
-                {
-                    "email": email,
-                    "password_hash": hashed_pw,
-                    "plan": "free"
-                }
-            ).execute()
-            
+            response = self.supabase.table("users").insert({
+                "email": email,
+                "password_hash": hashed_pw,
+                "plan": "free"
+            }).execute()
             return response.data[0]
         except Exception as e:
             print(f"[ERROR] Creating user: {e}")
@@ -43,148 +36,112 @@ class DatabaseManager:
             response = self.supabase.table("users").select("*").eq("email", email).execute()
             return response.data[0] if response.data else None
         except Exception as e:
-            print(f"[ERROR] Getting user: {e}")
             return None
 
     def verify_login(self, email: str, password: str) -> dict:
-        """Checks if the user exists and verifies the bcrypt password hash."""
         user = self.get_user_by_email(email)
-        if not user:
-            return None  # User does not exist
+        if not user or not user.get("password_hash"):
+            return None if not user else False
             
-        stored_hash = user.get("password_hash")
-        if not stored_hash:
-            return False # Legacy user without password
-            
-        # Verify the provided password against the stored hash
-        if bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8')):
+        if bcrypt.checkpw(password.encode('utf-8'), user["password_hash"].encode('utf-8')):
             return user
-        else:
-            return False # Wrong password
+        return False
 
     def update_stripe_data(self, email: str, customer_id: str, sub_id: str, status: str, plan: str) -> bool:
         try:
-            self.supabase.table("users").update(
-                {
-                    "stripe_customer_id": customer_id,
-                    "stripe_subscription_id": sub_id,
-                    "stripe_subscription_status": status,
-                    "plan": plan
-                }
-            ).eq("email", email).execute()
+            self.supabase.table("users").update({
+                "stripe_customer_id": customer_id,
+                "stripe_subscription_id": sub_id,
+                "stripe_subscription_status": status,
+                "plan": plan
+            }).eq("email", email).execute()
             return True
-        except Exception as e:
-            print(f"[ERROR] Updating Stripe data: {e}")
+        except Exception:
             return False
 
-    # ==========================================
-    # PROYECTOS
-    # ==========================================
-    def create_project(self, user_id: str, name: str) -> dict:
-        # Validar plan antes de crear
-        user_response = self.supabase.table("users").select("plan").eq("id", user_id).execute()
-        if not user_response.data:
-            raise ValueError("Usuario no encontrado.")
-            
-        plan = user_response.data[0]["plan"]
+    def check_compilation_limit(self, user_id: str) -> bool:
+        """Comprueba y actualiza los límites de compilación IA diarios."""
+        user = self.supabase.table("users").select("plan, daily_compilations, last_compilation_date").eq("id", user_id).execute().data[0]
         
-        if plan == "free":
-            projects_data = self.supabase.table("projects").select("id").eq("user_id", user_id).execute().data
-            if projects_data:
-                project_ids = [p["id"] for p in projects_data]
-                files_data = self.supabase.table("files").select("id").in_("project_id", project_ids).execute().data
-                if len(files_data) >= 3:
-                    raise PermissionError("Plan Free: Has alcanzado el limite de 3 ficheros totales en tu cuenta.")
-
-        try:
-            response = self.supabase.table("projects").insert(
-                {"user_id": user_id, "name": name}
-            ).execute()
-            return response.data[0]
-        except Exception as e:
-            print(f"[ERROR] Creando proyecto: {e}")
-            return None
-
-    def get_projects_by_user(self, user_id: str) -> list:
-        try:
-            response = self.supabase.table("projects").select("*").eq("user_id", user_id).execute()
-            return response.data
-        except Exception as e:
-            print(f"Error obteniendo proyectos: {e}")
-            return []
-
-    # ==========================================
-    # ARCHIVOS (Con validacion de lineas y proyectos multiples)
-    # ==========================================
-    def create_file(self, user_id: str, project_id: str, filename: str, pseudocode: str = "") -> dict:
-        # 0. Si el usuario le vuelve a dar a "Ejecutar", actualizamos el archivo existente
-        existing_file = self.supabase.table("files").select("id").eq("project_id", project_id).eq("filename", filename).execute().data
-        if existing_file:
-            response = self.supabase.table("files").update({"pseudocode": pseudocode}).eq("id", existing_file[0]["id"]).execute()
-            return response.data[0]
-
-        # 1. Validar limites del usuario (para archivos nuevos)
-        user_response = self.supabase.table("users").select("plan").eq("id", user_id).execute()
-        if not user_response.data:
-            raise ValueError("Usuario no encontrado en la base de datos.")
+        if user['plan'] in ['premium', 'unlimited']:
+            return True # Sin límites
             
+        today_str = date.today().isoformat()
+        
+        # Si es un nuevo día, reseteamos el contador
+        if str(user.get('last_compilation_date')) != today_str:
+            self.supabase.table("users").update({
+                "daily_compilations": 1, 
+                "last_compilation_date": today_str
+            }).eq("id", user_id).execute()
+            return True
+            
+        # Si es el mismo día, comprobamos el límite de 5
+        if user.get('daily_compilations', 0) >= 5:
+            raise PermissionError("Plan Free: You have reached your daily limit of 5 AI compilations.")
+            
+        # Si no ha llegado al límite, incrementamos
+        self.supabase.table("users").update({
+            "daily_compilations": user.get('daily_compilations', 0) + 1
+        }).eq("id", user_id).execute()
+        return True
+
+    # ==========================================
+    # GESTIÓN DE ARCHIVOS (Sin proyectos)
+    # ==========================================
+    def create_file(self, user_id: str, filename: str, pseudocode: str = "") -> dict:
+        # 1. Actualizar si ya existe
+        existing = self.supabase.table("files").select("id").eq("user_id", user_id).eq("filename", filename).execute().data
+        if existing:
+            response = self.supabase.table("files").update({"pseudocode": pseudocode}).eq("id", existing[0]["id"]).execute()
+            return response.data[0]
+
+        # 2. Validar límites de usuarios Free al crear archivos nuevos
+        user_response = self.supabase.table("users").select("plan").eq("id", user_id).execute()
         plan = user_response.data[0]["plan"]
 
         if plan == "free":
-            num_lineas = len(pseudocode.split('\n'))
-            if num_lineas > 50:
-                raise PermissionError(f"Plan Free: Tu codigo tiene {num_lineas} lineas. El limite es 50.")
+            if len(pseudocode.split('\n')) > 10:
+                raise PermissionError("Plan Free: Your code exceeds the 10 lines limit.")
                 
-            existing_files = self.supabase.table("files").select("id").eq("project_id", project_id).execute().data
-            if len(existing_files) >= 1:
-                raise PermissionError("Plan Free: No puedes tener mas de 1 fichero por proyecto.")
+            existing_files = self.supabase.table("files").select("id").eq("user_id", user_id).execute().data
+            if len(existing_files) >= 3:
+                raise PermissionError("Plan Free: You can only have 3 files maximum.")
 
         try:
-            response = self.supabase.table("files").insert(
-                {
-                    "project_id": project_id,
-                    "filename": filename,
-                    "pseudocode": pseudocode
-                }
-            ).execute()
+            response = self.supabase.table("files").insert({
+                "user_id": user_id,
+                "filename": filename,
+                "pseudocode": pseudocode
+            }).execute()
             return response.data[0]
         except Exception as e:
-            print(f"[ERROR] Creando archivo: {e}")
             return None
 
-    def update_file_translation(self, file_id: str, translated_code: str, ai_language: str) -> dict:
+    def update_file_translation(self, file_id: str, translated_code: str) -> dict:
         try:
-            response = self.supabase.table("files").update(
-                {
-                    "translated_code": translated_code,
-                    "ai_language": ai_language
-                }
-            ).eq("id", file_id).execute()
+            response = self.supabase.table("files").update({"translated_code": translated_code}).eq("id", file_id).execute()
             return response.data[0]
-        except Exception as e:
-            print(f"[ERROR] Actualizando traduccion: {e}")
+        except Exception:
             return None
 
-    def get_files_by_project(self, project_id: str) -> list:
+    def get_files_by_user(self, user_id: str) -> list:
         try:
-            response = self.supabase.table("files").select("*").eq("project_id", project_id).execute()
+            response = self.supabase.table("files").select("*").eq("user_id", user_id).execute()
             return response.data
-        except Exception as e:
-            print(f"Error obteniendo archivos: {e}")
+        except Exception:
             return []
-        
+            
     def delete_file(self, file_id: str) -> bool:
         try:
             self.supabase.table("files").delete().eq("id", file_id).execute()
             return True
-        except Exception as e:
-            print(f"[ERROR] Eliminando archivo: {e}")
+        except Exception:
             return False
 
     def rename_file(self, file_id: str, new_name: str) -> bool:
         try:
             self.supabase.table("files").update({"filename": new_name}).eq("id", file_id).execute()
             return True
-        except Exception as e:
-            print(f"[ERROR] Renombrando archivo: {e}")
+        except Exception:
             return False
