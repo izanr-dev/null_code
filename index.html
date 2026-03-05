@@ -23,39 +23,46 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
+        /* HEADER */
         header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-color); }
         .header-left { display: flex; align-items: center; gap: 24px; }
         .logo { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.5px; }
         .btn-text { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 6px 12px; transition: 0.2s; font-size: 0.9rem; border-radius: 4px; }
         .btn-text:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
         
+        /* CENTER BADGES */
         .header-center { display: flex; align-items: center; gap: 15px; }
         .premium-badge { display: none; background: var(--premium-bg); color: var(--premium); border: 1px solid var(--premium); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
         .btn-unlock { display: none; background: var(--accent); color: var(--bg-color); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
         .btn-unlock:hover { background: #ccc; }
 
+        /* ACTIONS */
         .actions { display: flex; gap: 12px; align-items: center; }
-        .actions button { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); padding: 7px 16px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        .actions button { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); padding: 7px 16px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;}
         .actions button:hover:not(:disabled) { border-color: var(--text-muted); }
         .btn-run { background: #141414 !important; }
         .btn-compile { background: var(--accent) !important; color: var(--bg-color) !important; font-weight: 600; }
         .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        /* MAIN LAYOUT */
         main { display: flex; flex: 1; height: calc(100vh - 60px); }
 
-        /* SIDEBAR */
+        /* SIDEBAR (Hidden by default) */
         .sidebar { width: var(--sidebar-width); background: var(--panel-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; transition: 0.3s; }
         .sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width)); }
+        
         .sidebar-header { padding: 15px 20px; font-size: 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; font-weight: 600; }
-        .btn-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; transition: 0.2s; }
-        .btn-icon:hover { color: var(--accent); }
+        .sidebar-tools { display: flex; gap: 8px; }
+        .btn-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; padding: 4px; border-radius: 4px;}
+        .btn-icon:hover { color: var(--accent); background: rgba(255,255,255,0.05);}
+        
         .file-list { padding: 10px; flex: 1; overflow-y: auto; }
         .file-item { padding: 8px 12px; font-size: 0.9rem; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; color: #a0a0a0; margin-bottom: 2px; }
         .file-item:hover { background: rgba(255,255,255,0.03); color: var(--text-main); }
         .file-item.active { background: rgba(255,255,255,0.08); color: var(--text-main); }
 
         /* EDITOR */
-        .editor-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-color); border-right: 1px solid var(--border-color); }
+        .editor-container { flex: 1; display: flex; flex-direction: column; background: var(--bg-color); border-right: 1px solid var(--border-color); min-width: 0; }
         .editor-tools { padding: 10px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; }
         .lang-select { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 5px 10px; border-radius: 4px; outline: none; font-size: 0.85rem; cursor: pointer; }
         
@@ -64,8 +71,8 @@
         .CodeMirror-linenumber { color: #555 !important; }
 
         /* OUTPUT PANEL (Split Layout) */
-        .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--panel-bg); position: relative; }
-        .btn-eye { position: absolute; top: 16px; right: 16px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); width: 32px; height: 32px; border-radius: 4px; cursor: pointer; z-index: 10; font-size: 1rem; transition: 0.2s; display: flex; align-items: center; justify-content: center;}
+        .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--panel-bg); position: relative; min-width: 0;}
+        .btn-eye { position: absolute; top: 16px; right: 16px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 4px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; transition: 0.2s;}
         .btn-eye:hover { color: var(--accent); border-color: var(--text-muted); background: rgba(255,255,255,0.05); }
         
         .output-scroll { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; }
@@ -77,11 +84,11 @@
         #code-viewer-container.visible { display: flex; }
         .viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: #111; border-bottom: 1px solid var(--border-color); }
         .viewer-title { font-size: 0.8rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
-        .btn-copy { background: transparent; border: none; color: var(--accent); cursor: pointer; font-size: 0.85rem; padding: 4px 8px; border-radius: 4px; transition: 0.2s;}
+        .btn-copy { background: transparent; border: none; color: var(--accent); cursor: pointer; font-size: 0.85rem; padding: 4px 8px; border-radius: 4px; transition: 0.2s; display: flex; align-items: center; gap: 5px;}
         .btn-copy:hover { background: rgba(255,255,255,0.1); }
         #code-viewer { flex: 1; padding: 15px 24px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9rem; color: #569cd6; background: transparent; border: none; resize: none; outline: none; }
 
-        /* MODALS */
+        /* MODALS & CONTEXT MENU */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
         .modal-overlay.active { display: flex; }
         .modal-box { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: 8px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -95,17 +102,20 @@
         .btn-secondary { background: #222; color: white; border: 1px solid var(--border-color) !important; }
         .btn-secondary:hover { background: #333; }
 
-        .context-menu { display: none; position: absolute; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; z-index: 50; width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden; }
+        .context-menu { display: none; position: absolute; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; z-index: 50; width: 150px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden; }
         .context-menu.active { display: block; }
-        .context-menu div { padding: 10px 15px; font-size: 0.9rem; cursor: pointer; color: var(--text-main); transition: 0.2s; }
+        .context-menu div { padding: 10px 15px; font-size: 0.9rem; cursor: pointer; color: var(--text-main); transition: 0.2s; display: flex; align-items: center; gap: 8px;}
         .context-menu div:hover { background: rgba(255,255,255,0.05); }
         .context-menu .danger { color: var(--error); border-top: 1px solid var(--border-color); }
+        .context-menu .danger:hover { background: rgba(255, 68, 68, 0.1); }
         
         .loader { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: transparent; animation: spin 1s infinite; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
+
+    <input type="file" id="file-import" style="display: none;" onchange="handleImport(event)">
 
     <header>
         <div class="header-left">
@@ -118,16 +128,25 @@
         </div>
         <div class="actions">
             <button id="btn-login" onclick="openAuthModal()">Login</button>
-            <button id="btn-run" class="btn-run" onclick="runCode()" disabled>Run</button>
+            <button id="btn-run" class="btn-run" onclick="runCode()" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run
+            </button>
             <button id="btn-compile" class="btn-compile" onclick="compileIdea()" disabled>Compile</button>
         </div>
     </header>
 
     <main>
-        <aside class="sidebar" id="sidebar">
+        <aside class="sidebar hidden" id="sidebar">
             <div class="sidebar-header">
                 <span>Files</span>
-                <button class="btn-icon" onclick="openNewFileModal()" title="New File">+</button>
+                <div class="sidebar-tools">
+                    <button class="btn-icon" onclick="triggerImport()" title="Import File">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </button>
+                    <button class="btn-icon" onclick="openNewFileModal()" title="New File">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
+                </div>
             </div>
             <div class="file-list" id="file-list"></div>
         </aside>
@@ -143,7 +162,9 @@
         </div>
 
         <div class="right-panel">
-            <button class="btn-eye" onclick="toggleCode()" title="View Translated Code">👁️</button>
+            <button class="btn-eye" onclick="toggleCode()" title="Toggle Code Viewer">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
             
             <div class="output-scroll">
                 <div id="ui-container"></div>
@@ -153,7 +174,9 @@
             <div id="code-viewer-container">
                 <div class="viewer-header">
                     <span class="viewer-title">Python Translation</span>
-                    <button class="btn-copy" onclick="copyCode()" id="copy-btn">Copy</button>
+                    <button class="btn-copy" onclick="copyCode()" id="copy-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy
+                    </button>
                 </div>
                 <textarea id="code-viewer" spellcheck="false" readonly></textarea>
             </div>
@@ -162,6 +185,7 @@
 
     <div class="context-menu" id="context-menu">
         <div onclick="openRenameModal()">Rename</div>
+        <div onclick="handleExportContext()">Export</div>
         <div class="danger" onclick="deleteSelectedFile()">Delete</div>
     </div>
 
@@ -182,6 +206,7 @@
         let files = [{ id: "temp-1", name: "main.pse", content: "" }];
         let activeFileId = "temp-1";
         
+        // DOM Elements
         const btnRun = document.getElementById("btn-run");
         const btnCompile = document.getElementById("btn-compile");
         const uiContainer = document.getElementById("ui-container");
@@ -258,7 +283,6 @@
 
             if (!sessionUser) { openAuthModal("login", "Please login to compile."); return; }
 
-            // Lógica de validación frontend rápida
             if (sessionUser.plan === "free" && idea.split('\n').length > 10) {
                 showLimitModal("Free accounts are limited to 10 lines of code per file."); return;
             }
@@ -299,13 +323,19 @@
             setButtonsState(true, "Running...", true);
             await executePython(codeToRun);
             setButtonsState(false, "Compile");
-            btnRun.innerText = "Run";
+            btnRun.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
         }
 
         async function executePython(code) {
             try {
+                // 1. Sync files to Pyodide FS before running
+                files.forEach(f => {
+                    try { pyodide.FS.writeFile(f.name, f.content); } catch(e){}
+                });
+
                 const interceptorSetup = `\nimport sys, io, builtins, js\nsys.stdout = io.StringIO()\nsys.stderr = io.StringIO()\nasync def custom_input(prompt_text=""):\n    return await js.window.terminal_input(prompt_text)\nbuiltins.input = custom_input\n`;
                 const fullExecutionCode = interceptorSetup + "\n" + code;
+                
                 await pyodide.loadPackagesFromImports(fullExecutionCode);
                 await pyodide.runPythonAsync(fullExecutionCode);
                 
@@ -314,7 +344,47 @@
 
                 if (stdout) printText(stdout, "output");
                 if (stderr) printText(stderr, "error");
+
+                // 2. Sync newly generated files back from Pyodide FS
+                syncPyodideFS();
+
             } catch (err) { printText(err.message, "error"); }
+        }
+
+        function syncPyodideFS() {
+            try {
+                const currentDir = pyodide.FS.readdir('.');
+                let hitLimit = false;
+
+                for (const name of currentDir) {
+                    if (name === '.' || name === '..') continue;
+                    
+                    const stat = pyodide.FS.stat(name);
+                    if (pyodide.FS.isDir(stat.mode)) continue;
+
+                    const content = pyodide.FS.readFile(name, { encoding: "utf8" });
+                    const existingFile = files.find(f => f.name === name);
+
+                    if (existingFile) {
+                        if (existingFile.content !== content) {
+                            existingFile.content = content;
+                            if (activeFileId === existingFile.id) cmEditor.setValue(content);
+                        }
+                    } else {
+                        // New file created by Python code
+                        if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) {
+                            hitLimit = true;
+                        } else {
+                            const newId = `temp-${Date.now()}-${Math.random()}`;
+                            files.push({ id: newId, name: name, content: content });
+                        }
+                    }
+                }
+                if (hitLimit) {
+                    showLimitModal("Your Python script generated new files, but Free accounts are limited to 3 files. Some generated files were discarded.");
+                }
+                renderFiles();
+            } catch (e) { console.error("Error syncing virtual FS:", e); }
         }
 
         // --- NATIVE TERMINAL ---
@@ -422,8 +492,8 @@
             const code = codeViewer.value;
             navigator.clipboard.writeText(code).then(() => {
                 const btn = document.getElementById("copy-btn");
-                btn.innerText = "Copied!";
-                setTimeout(() => btn.innerText = "Copy", 2000);
+                btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+                setTimeout(() => btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy`, 2000);
             });
         }
 
@@ -441,7 +511,7 @@
             document.querySelector(".output-scroll").scrollTop = document.querySelector(".output-scroll").scrollHeight;
         }
 
-        // --- FILES ---
+        // --- FILES (Import / Export / Manage) ---
         function renderFiles() {
             const list = document.getElementById("file-list");
             list.innerHTML = "";
@@ -461,7 +531,7 @@
 
         function openNewFileModal() {
             if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) { showLimitModal("Free accounts are limited to 3 files simultaneously."); return; }
-            showModal("New File", "Enter filename (e.g., utils.pse)", true, false, [
+            showModal("New File", "Enter filename (e.g., config.txt)", true, false, [
                 { text: "Create", class: "btn-primary", action: () => {
                     const name = document.getElementById("modal-input").value.trim();
                     if(name) { const newId = `temp-${Date.now()}`; files.push({ id: newId, name: name, content: "" }); activeFileId = newId; cmEditor.setValue(""); renderFiles(); }
@@ -477,7 +547,7 @@
                     if(newName) { contextFile.name = newName; renderFiles(); }
                     closeModal(); 
                 }}, { text: "Cancel", class: "btn-secondary", action: closeModal }
-            ], "new_name.pse"); 
+            ], "new_name.txt"); 
         }
 
         function deleteSelectedFile() {
@@ -489,6 +559,39 @@
                     renderFiles(); closeModal(); 
                 }}, { text: "Cancel", class: "btn-secondary", action: closeModal }
             ]);
+        }
+
+        // Import Local File
+        function triggerImport() {
+            if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) {
+                showLimitModal("Free accounts are limited to 3 files simultaneously. Please upgrade to import more."); return;
+            }
+            document.getElementById("file-import").click();
+        }
+
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const newId = `temp-${Date.now()}`;
+                files.push({ id: newId, name: file.name, content: e.target.result });
+                activeFileId = newId;
+                cmEditor.setValue(e.target.result);
+                renderFiles();
+                event.target.value = ""; 
+            };
+            reader.readAsText(file);
+        }
+
+        // Export (Download) File
+        function handleExportContext() {
+            const blob = new Blob([contextFile.content], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = contextFile.name;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
