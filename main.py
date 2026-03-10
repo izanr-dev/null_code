@@ -48,6 +48,25 @@ async def signup_user(request: Request):
         raise HTTPException(400, "Email and password are required.")
     
     try:
+        # Registramos al usuario en Supabase Auth
+        db.supabase.auth.sign_up({
+            "email": email,
+            "password": password
+        })
+        # Devolvemos solo un mensaje de éxito, no iniciamos sesión
+        return {"status": "success", "message": "Please verify your email."}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+@app.post("/api/auth/signup")
+async def signup_user(request: Request):
+    data = await request.json()
+    email, password = data.get("email"), data.get("password")
+    
+    if not email or not password: 
+        raise HTTPException(400, "Email and password are required.")
+    
+    try:
         user = db.create_user(email, password)
         if not user: 
             raise HTTPException(500, "Error creating account.")
@@ -67,6 +86,14 @@ async def rename_file(file_id: str, request: Request):
     data = await request.json()
     if not db.rename_file(file_id, data.get("new_name")): raise HTTPException(500, "Error renaming file")
     return {"status": "success"}
+
+@app.get("/api/files/{user_id}")
+async def get_user_files(user_id: str):
+    try:
+        files = db.get_files_by_user(user_id)
+        return {"status": "success", "files": files}
+    except Exception as e:
+        raise HTTPException(500, "Error fetching files.")
 
 # --- COMPILADOR IA ---
 @app.post("/api/compile")

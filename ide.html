@@ -269,7 +269,10 @@
         // --- INIT & SESSION ---
         window.onload = async () => {
             const savedUser = localStorage.getItem("nullcode_user");
-            if (savedUser) sessionUser = JSON.parse(savedUser);
+            if (savedUser) {
+                sessionUser = JSON.parse(savedUser);
+                await loadUserFiles(); // <-- Añadimos esta línea aquí
+            }
             
             // Comprobación Mágica de Stripe al volver del pago
             const urlParams = new URLSearchParams(window.location.search);
@@ -367,6 +370,7 @@
                 if (data.status === "error") { printText(`AI Feedback: ${data.message}`, "ai"); return; }
 
                 codeViewer.value = data.code;
+                activeFile.translated_code = data.code;
                 btnRun.disabled = false;
                 await executePython(data.code);
 
@@ -665,11 +669,54 @@ builtins.input = custom_input
                 if (res.status === 404 && type === "login") { openAuthModal("signup", "Account not found. Please create one."); return; }
                 if (!res.ok) throw new Error(data.detail);
                 
+                // Si es un registro, mostramos el aviso y paramos (no iniciamos sesión)
+                if (type === "signup") {
+                    showModal("Check your email", "Account created! Please check your email inbox to verify your account before logging in.", false, false, [
+                        { text: "OK", class: "btn-primary", action: () => openAuthModal("login") }
+                    ]);
+                    return;
+                }
+                
+                // Si es login, guardamos la sesión y cargamos sus archivos
                 sessionUser = data;
                 localStorage.setItem("nullcode_user", JSON.stringify(sessionUser));
-                updateAuthUI(); closeModal();
+                updateAuthUI(); 
+                closeModal();
+                
+                // Cargamos los archivos de la BBDD
+                await loadUserFiles();
+                
             } catch (err) {
-                const msgEl = document.getElementById("modal-msg"); msgEl.innerText = err.message; msgEl.style.color = "var(--error)"; msgEl.style.display = "block";
+                const msgEl = document.getElementById("modal-msg"); 
+                msgEl.innerText = err.message.includes("Email not confirmed") ? "Please verify your email address first." : err.message; 
+                msgEl.style.color = "var(--error)"; 
+                msgEl.style.display = "block";
+            }
+        }
+
+        async function loadUserFiles() {
+            if (!sessionUser) return;
+            try {
+                const res = await fetch(`${API_URL}/api/files/${sessionUser.id}`);
+                const data = await res.json();
+                
+                if (data.status === "success" && data.files && data.files.length > 0) {
+                    files = data.files.map(f => ({
+                        id: f.id,
+                        name: f.filename,
+                        content: f.pseudocode || "",
+                        translated_code: f.translated_code || ""
+                    }));
+                    
+                    activeFileId = files[0].id;
+                    cmEditor.setValue(files[0].content);
+                    codeViewer.value = files[0].translated_code; // Restaurar el código compilado
+                    
+                    if (files[0].translated_code) btnRun.disabled = false;
+                    renderFiles();
+                }
+            } catch (e) {
+                console.error("Error loading files:", e);
             }
         }
 
@@ -708,7 +755,13 @@ builtins.input = custom_input
                 const el = document.createElement("div");
                 el.className = `file-item ${f.id === activeFileId ? "active" : ""}`;
                 el.innerText = f.name;
-                el.onclick = () => { activeFileId = f.id; cmEditor.setValue(f.content); renderFiles(); };
+                el.onclick = () => { 
+                activeFileId = f.id; 
+                cmEditor.setValue(f.content); 
+                codeViewer.value = f.translated_code || ""; // Carga el código IA del archivo
+                btnRun.disabled = !f.translated_code && langSelect.value !== "python";
+                renderFiles(); 
+                };
                 el.oncontextmenu = (e) => showContextMenu(e, f);
                 list.appendChild(el);
             });
