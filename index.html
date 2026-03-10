@@ -128,7 +128,7 @@
                 
                 // Fetch legal text dynamically if requested
                 if(sectionId === 'legal') {
-                    fetch('legalNotice.txt')
+                    fetch('legal_notice.txt')
                         .then(response => response.ok ? response.text() : "Legal document not found. Please add legalNotice.txt")
                         .then(text => document.getElementById('legal-text').textContent = text)
                         .catch(err => document.getElementById('legal-text').textContent = "Error loading legal document.");
