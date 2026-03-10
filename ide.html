@@ -10,6 +10,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/darcula.min.css" crossorigin="anonymous">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldgutter.min.css" crossorigin="anonymous">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/anyword-hint.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldcode.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldgutter.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/brace-fold.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/indent-fold.min.js" crossorigin="anonymous"></script>
 
     <style>
         :root {
@@ -72,9 +83,16 @@
         .editor-tools { padding: 10px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; }
         .lang-select { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 5px 10px; border-radius: 4px; outline: none; font-size: 0.85rem; cursor: pointer; }
         
-        .CodeMirror { flex: 1; background: transparent !important; height: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.05rem; line-height: 1.6; padding: 10px 0; }
+        /* TIPOGRAFÍA COURIER Y ESTILOS DEL EDITOR */
+        .CodeMirror { flex: 1; background: transparent !important; height: auto; font-family: 'Courier New', Courier, monospace; font-size: 1.05rem; line-height: 1.6; padding: 10px 0; }
         .CodeMirror-gutters { background: transparent !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
         .CodeMirror-linenumber { color: #555 !important; }
+        .CodeMirror-foldmarker { color: #888; text-shadow: none; font-family: arial; font-size: 1.2rem; cursor: pointer; }
+        
+        /* TEMA DEL AUTOCOMPLETADO (INTELLISENSE) */
+        .CodeMirror-hints { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.8); font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; z-index: 999; padding: 4px 0; overflow-y: auto; }
+        .CodeMirror-hint { color: var(--text-muted); padding: 6px 16px; transition: 0.1s; cursor: pointer; }
+        .CodeMirror-hint-active { background: rgba(255,255,255,0.08); color: var(--accent); font-weight: bold; }
 
         /* OUTPUT PANEL (Split Layout) */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--panel-bg); position: relative; min-width: 0;}
@@ -322,12 +340,36 @@
 
         // --- CODEMIRROR ---
         let cmEditor = CodeMirror.fromTextArea(document.getElementById("editor"), {
-            mode: "text/plain", theme: "darcula", lineNumbers: true, indentUnit: 4,
+            mode: "text/plain", 
+            theme: "darcula", 
+            lineNumbers: true, 
+            indentUnit: 4,
+            matchBrackets: true,       // Resalta llaves/paréntesis emparejados
+            autoCloseBrackets: true,   // Cierra () y {} automáticamente al abrir
+            foldGutter: true,          // Añade las líneas laterales de jerarquía
+            gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"], // Habilita el canal para las líneas de bloque
             extraKeys: {
                 "Tab": function(cm) {
-                    if (langSelect.value === "python") cm.replaceSelection("    ", "end");
+                    if (cm.getOption("mode") === "python") cm.replaceSelection("    ", "end");
                     else return CodeMirror.Pass;
-                }
+                },
+                "Ctrl-Space": "autocomplete" // Atajo manual estilo VS Code
+            }
+        });
+
+        // Activar autocompletado (IntelliSense) en tiempo real al teclear
+        cmEditor.on("keyup", function (cm, event) {
+            // No activar si el menú ya está abierto o si no estamos en Python
+            if (cm.state.completionActive) return;
+            if (cm.getOption("mode") !== "python") return;
+
+            // Ignorar flechas de dirección, Enter, borrar, etc.
+            const isLetter = (event.keyCode >= 65 && event.keyCode <= 90); // Letras de la A a la Z
+            const isDot = (event.key === "."); // Punto para atributos (ej. info.nombre)
+            
+            if (isLetter || isDot) {
+                // Llama al motor 'anyword' que lee el contexto de tu código local
+                cm.showHint({ hint: CodeMirror.hint.anyword, completeSingle: false });
             }
         });
 
