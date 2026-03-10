@@ -30,25 +30,31 @@ async def login_user(request: Request):
     data = await request.json()
     email, password = data.get("email"), data.get("password")
     
-    if not email or not password: raise HTTPException(400, "Email and password are required.")
-    user = db.get_user_by_email(email)
-    if not user: raise HTTPException(404, "Account not found. Please create one.")
-    
-    valid_user = db.verify_login(email, password)
-    if valid_user is False: raise HTTPException(401, "Invalid password.")
-    return valid_user
+    if not email or not password: 
+        raise HTTPException(400, "Email and password are required.")
+        
+    user = db.verify_login(email, password)
+    if not user: 
+        raise HTTPException(401, "Invalid email or password.")
+        
+    return user
 
 @app.post("/api/auth/signup")
 async def signup_user(request: Request):
     data = await request.json()
     email, password = data.get("email"), data.get("password")
     
-    if not email or not password: raise HTTPException(400, "Email and password are required.")
-    if db.get_user_by_email(email): raise HTTPException(400, "Email already registered. Please Login.")
+    if not email or not password: 
+        raise HTTPException(400, "Email and password are required.")
     
-    user = db.create_user(email, password)
-    if not user: raise HTTPException(500, "Error creating account.")
-    return user
+    try:
+        user = db.create_user(email, password)
+        if not user: 
+            raise HTTPException(500, "Error creating account.")
+        return user
+    except Exception as e:
+        # Pass the Supabase Auth error directly to the frontend
+        raise HTTPException(400, str(e))
 
 # --- ARCHIVOS ---
 @app.delete("/api/files/{file_id}")

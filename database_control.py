@@ -41,13 +41,18 @@ class AdminController:
 
     def create_user_manual(self, email: str, plan: str):
         try:
-            self.supabase.table("users").insert(
-                {
-                    "email": email,
-                    "plan": plan
-                }
-            ).execute()
+            # In Supabase Auth, a password is required. We assign a default one for manual creation.
+            default_password = "NullCodeAdmin123!"
+            self.supabase.auth.sign_up({
+                "email": email,
+                "password": default_password
+            })
+            
+            # After creation, update their plan in the public table
+            self.supabase.table("users").update({"plan": plan}).eq("email", email).execute()
+            
             print(f"[EXITO] Usuario {email} creado con plan {plan}.")
+            print(f"[INFO] Contraseña temporal asignada: {default_password}")
         except Exception as e:
             print(f"[ERROR] Creando usuario: {e}")
 

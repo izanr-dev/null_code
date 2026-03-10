@@ -1,5 +1,4 @@
 import os
-import bcrypt
 from datetime import date
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -18,34 +17,48 @@ class DatabaseManager:
     # ==========================================
     def create_user(self, email: str, password: str) -> dict:
         try:
-            salt = bcrypt.gensalt()
-            hashed_pw = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-            
-            response = self.supabase.table("users").insert({
+            response = self.supabase.auth.sign_up({
                 "email": email,
-                "password_hash": hashed_pw,
-                "plan": "free"
-            }).execute()
-            return response.data[0]
+                "password": password
+            })
+            
+            if response.user:
+                # Intentamos recuperarlo de tu tabla pública
+                user_data = self.get_user_by_email(email)
+                
+                if user_data:
+                    return user_data
+                else:
+                    # El Auth funcionó, pero la BBDD pública no tiene el dato
+                    raise Exception("Auth exitoso, pero no aparece en public.users. ¿Usaste la service_role key en el .env? ¿Se ejecutó bien el Trigger SQL?")
+            
+            raise Exception("Supabase no devolvió el User. ¿Tienes desactivada la confirmación por email en los ajustes?")
+            
         except Exception as e:
-            print(f"[ERROR] Creating user: {e}")
-            return None
+            # Pasamos el error real hacia arriba
+            raise Exception(f"Fallo detallado: {str(e)}")
+
+    def verify_login(self, email: str, password: str) -> dict:
+        try:
+            # Supabase Auth validates the credentials
+            response = self.supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+            
+            if response.user:
+                return self.get_user_by_email(email)
+            return False
+        except Exception as e:
+            # Usually means invalid credentials
+            return False
 
     def get_user_by_email(self, email: str) -> dict:
         try:
             response = self.supabase.table("users").select("*").eq("email", email).execute()
             return response.data[0] if response.data else None
-        except Exception as e:
+        except Exception:
             return None
-
-    def verify_login(self, email: str, password: str) -> dict:
-        user = self.get_user_by_email(email)
-        if not user or not user.get("password_hash"):
-            return None if not user else False
-            
-        if bcrypt.checkpw(password.encode('utf-8'), user["password_hash"].encode('utf-8')):
-            return user
-        return False
 
     def update_stripe_data(self, email: str, customer_id: str, sub_id: str, status: str, plan: str) -> bool:
         try:
