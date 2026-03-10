@@ -108,6 +108,8 @@ async def compile_code(request: Request):
     user_id = data.get("user_id")
     filename = data.get("filename")
     pseudocode = data.get("pseudocode")
+    item_type = data.get("item_type", "file") 
+    parent_id = data.get("parent_id")        
 
     if not all([user_id, filename, pseudocode]):
         raise HTTPException(400, "Missing parameters.")

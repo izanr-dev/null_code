@@ -134,16 +134,53 @@
         /* DROPDOWN LATERAL Y EXPLORADOR ESTILO VS CODE */
         .sidebar-dropdown { position: relative; display: inline-block; }
         .sidebar-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; z-index: 100; min-width: 190px; box-shadow: 0 8px 16px rgba(0,0,0,0.8); overflow: hidden; }
-        .sidebar-menu.active { display: block; }
-        .sidebar-menu a { display: flex; align-items: center; gap: 10px; padding: 10px 15px; color: var(--text-main); text-decoration: none; font-size: 0.85rem; transition: 0.2s; }
+        .sidebar-menu.active { display: block; } /* ESTO ES LO QUE FALTABA */
+        
+        .sidebar-menu a { 
+            display: flex; 
+            align-items: center; 
+            justify-content: flex-start; 
+            gap: 12px; 
+            padding: 10px 15px; 
+            color: var(--text-main); 
+            text-decoration: none; 
+            font-size: 0.85rem; 
+            font-weight: 400; 
+            white-space: nowrap; 
+            transition: 0.2s; 
+        }
         .sidebar-menu a:hover { background: rgba(255,255,255,0.08); }
         .sidebar-menu .divider { height: 1px; background: var(--border-color); margin: 4px 0; }
-        .sidebar-menu .pro-badge { margin-left: auto; font-size: 0.65rem; background: var(--premium-bg); color: var(--premium); padding: 2px 6px; border-radius: 10px; font-weight: bold; border: 1px solid var(--premium); }
+        .sidebar-menu .pro-badge { margin-left: auto; font-size: 0.65rem; background: var(--premium-bg); color: var(--premium); padding: 2px 6px; border-radius: 10px; font-weight: normal; border: 1px solid var(--premium); }
         
         .file-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; }
+        .file-icon svg { width: 100%; height: 100%; }
         .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; }
         .folder-item { font-weight: 600; color: #ccc; }
+
+        /* BOTÓN DE ESTADO VACÍO (MODERNO) */
+        .btn-empty-state {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px 22px;
+            font-size: 0.95rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .btn-empty-state:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            color: var(--accent);
+        }
     </style>
 </head>
 <body>
@@ -269,8 +306,8 @@
         const API_URL = "https://personal-trainer-4pzv.onrender.com";
         let pyodide = null;
         let sessionUser = null; 
-        let files = [{ id: "temp-1", name: "main.pse", content: "" }];
-        let activeFileId = "temp-1";
+        let files = [];
+        let activeFileId = "null";
         
         // DOM Elements
         const btnRun = document.getElementById("btn-run");
@@ -351,13 +388,75 @@
             }
         }
 
+        function updateEditorUI() {
+            const activeFile = files.find(f => f.id === activeFileId);
+            const btnEye = document.querySelector(".btn-eye");
+            
+            if (!activeFile || activeFile.type === "folder") {
+                // Estado vacío o carpeta seleccionada: Ocultar todo y bloquear editor
+                langSelect.style.display = "none";
+                btnRun.style.display = "none";
+                btnCompile.style.display = "none";
+                btnEye.style.display = "none";
+                cmEditor.setOption("readOnly", "nocursor");
+                cmEditor.setValue("");
+                codeViewer.value = "";
+                document.getElementById("code-viewer-container").classList.remove("visible");
+                return;
+            }
+
+            // Desbloquear editor
+            cmEditor.setOption("readOnly", false);
+            const name = activeFile.name.toLowerCase();
+
+            // Lógica inteligente según extensión
+            if (name.endsWith(".py")) {
+                langSelect.style.display = "none";
+                btnEye.style.display = "none";
+                btnRun.style.display = "flex";
+                btnCompile.style.display = "none";
+                btnRun.disabled = false;
+                cmEditor.setOption("mode", "python");
+                document.getElementById("code-viewer-container").classList.remove("visible");
+            } 
+            else if (name.endsWith(".nc")) {
+                langSelect.style.display = "none";
+                btnEye.style.display = "flex";
+                btnRun.style.display = "flex";
+                btnCompile.style.display = "flex";
+                btnRun.disabled = !activeFile.translated_code;
+                cmEditor.setOption("mode", "text/plain");
+            } 
+            else if (name.endsWith(".txt")) {
+                langSelect.style.display = "none";
+                btnEye.style.display = "none";
+                btnRun.style.display = "none";
+                btnCompile.style.display = "none";
+                cmEditor.setOption("mode", "text/plain");
+                document.getElementById("code-viewer-container").classList.remove("visible");
+            } 
+            else {
+                // Archivo genérico (sin extensión o desconocida) -> Mostrar selector
+                langSelect.style.display = "block";
+                btnEye.style.display = "none";
+                toggleLanguageMode(); 
+            }
+        }
+
         function toggleLanguageMode() {
             if (!pyodide) return;
-            const isPython = langSelect.value === "python";
-            btnCompile.style.display = isPython ? "none" : "flex";
-            btnRun.disabled = !isPython && !codeViewer.value;
-            btnCompile.disabled = isPython;
-            cmEditor.setOption("mode", isPython ? "python" : "text/plain");
+            const activeFile = files.find(f => f.id === activeFileId);
+            if (!activeFile) return;
+
+            // Solo aplicar si el selector está visible (archivos genéricos)
+            if (langSelect.style.display !== "none") {
+                const isPython = langSelect.value === "python";
+                btnCompile.style.display = isPython ? "none" : "flex";
+                btnRun.style.display = "flex";
+                btnRun.disabled = !isPython && !codeViewer.value;
+                btnCompile.disabled = isPython;
+                cmEditor.setOption("mode", isPython ? "python" : "text/plain");
+            }
         }
 
         // --- RUN & COMPILE ---
@@ -382,7 +481,13 @@
             setButtonsState(true, "Compiling...");
             
             const activeFile = files.find(f => f.id === activeFileId);
-            const payload = { user_id: sessionUser.id, filename: activeFile.name, pseudocode: idea };
+            const payload = { 
+                user_id: sessionUser.id, 
+                filename: activeFile.name, 
+                pseudocode: idea,
+                item_type: activeFile.type,      
+                parent_id: activeFile.parentId    
+            };
 
             try {
                 const response = await fetch(`${API_URL}/api/compile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -414,10 +519,17 @@
 
         async function runCode() {
             clearOutputs();
-            let codeToRun = langSelect.value === "python" ? cmEditor.getValue().trim() : codeViewer.value.trim();
+            const activeFile = files.find(f => f.id === activeFileId);
+            if (!activeFile) return;
+
+            // Inteligencia: Si es un .py O si el selector está en python
+            const isPython = activeFile.name.toLowerCase().endsWith(".py") || langSelect.value === "python";
+            
+            // Si es Python nativo, cogemos el texto del editor. Si es .nc, del panel traducido.
+            let codeToRun = isPython ? cmEditor.getValue().trim() : codeViewer.value.trim();
             if (!codeToRun) return;
             
-            if (langSelect.value === "python") codeViewer.value = codeToRun; 
+            if (isPython) codeViewer.value = codeToRun; 
             
             setButtonsState(true, "Running...", true);
             await executePython(codeToRun);
@@ -494,7 +606,7 @@ builtins.input = custom_input
                             hitLimit = true;
                         } else {
                             const newId = `temp-${Date.now()}-${Math.random()}`;
-                            files.push({ id: newId, name: name, content: content });
+                            files.push({ id: newId, name: name, content: content, type: "file", parentId: null, translated_code: "" });
                         }
                     }
                 }
@@ -857,9 +969,10 @@ builtins.input = custom_input
 
             let title, placeholder, ext;
             if (type === "folder") { title = "New Folder"; placeholder = "src"; ext = ""; }
-            else if (type === "py") { title = "New Python File"; placeholder = "script.py"; ext = ".py"; }
-            else if (type === "nc") { title = "New NullCode File"; placeholder = "logic.nc"; ext = ".nc"; }
-            else { title = "New File"; placeholder = "data.txt"; ext = ""; }
+            else if (type === "py") { title = "New Python File"; placeholder = "script"; ext = ".py"; }
+            else if (type === "nc") { title = "New NullCode File"; placeholder = "logic"; ext = ".nc"; }
+            else if (type === "txt") { title = "New Text File"; placeholder = "data"; ext = ".txt"; }
+            else { title = "New File"; placeholder = "config"; ext = ""; }
 
             showModal(title, "Enter name:", true, false, [
                 { text: "Create", class: "btn-primary", action: () => {
@@ -909,6 +1022,24 @@ builtins.input = custom_input
         function renderFiles() {
             const list = document.getElementById("file-list");
             list.innerHTML = "";
+            
+            // --- ESTADO VACÍO ---
+            if (files.length === 0) {
+                list.innerHTML = `
+                    <div style="display:flex; flex-direction:column; height:100%; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.9rem; text-align:center; padding: 20px;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:20px; opacity:0.3;"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                        <p style="margin-bottom: 25px; font-size: 1rem; opacity: 0.8;">Your workspace is empty</p>
+                        <button class="btn-empty-state" onclick="event.stopPropagation(); document.getElementById('sidebar-new-menu').classList.toggle('active');">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            Create File
+                        </button>
+                    </div>
+                `;
+                updateEditorUI();
+                return;
+            }
+
+            // --- RENDERIZADO NORMAL ---
             const sortedFiles = [...files].sort((a, b) => {
                 if (a.type === b.type) return a.name.localeCompare(b.name);
                 return a.type === "folder" ? -1 : 1;
@@ -920,15 +1051,17 @@ builtins.input = custom_input
                 el.innerHTML = `<span class="file-icon">${getFileIcon(f.name, f.type === "folder")}</span> <span class="file-name">${f.name}</span>`;
                 el.onclick = () => { 
                     if (f.type !== "folder") {
-                        activeFileId = f.id; cmEditor.setValue(f.content || ""); 
+                        activeFileId = f.id; 
+                        cmEditor.setValue(f.content || ""); 
                         codeViewer.value = f.translated_code || ""; 
-                        btnRun.disabled = !f.translated_code && langSelect.value !== "python";
                         renderFiles(); 
                     }
                 };
                 el.oncontextmenu = (e) => showContextMenu(e, f);
                 list.appendChild(el);
             });
+            
+            updateEditorUI(); // Actualizar botones y visibilidad
         }
 
         function openRenameModal() {
@@ -965,7 +1098,7 @@ builtins.input = custom_input
             const reader = new FileReader();
             reader.onload = (e) => {
                 const newId = `temp-${Date.now()}`;
-                files.push({ id: newId, name: file.name, content: e.target.result });
+                files.push({ id: newId, name: file.name, content: e.target.result, type: "file", parentId: null, translated_code: "" });
                 activeFileId = newId; cmEditor.setValue(e.target.result); renderFiles(); event.target.value = ""; 
             };
             reader.readAsText(file);
