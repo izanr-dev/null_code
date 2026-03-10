@@ -94,6 +94,29 @@ async def get_user_files(user_id: str):
         return {"status": "success", "files": files}
     except Exception as e:
         raise HTTPException(500, "Error fetching files.")
+    
+@app.post("/api/files/save")
+async def save_file_manual(request: Request):
+    data = await request.json()
+    user_id = data.get("user_id")
+    filename = data.get("filename")
+    pseudocode = data.get("pseudocode", "")
+    
+    if not user_id or not filename:
+        raise HTTPException(400, "Missing user_id or filename")
+        
+    try:
+        # La función create_file de database.py ya es lista: 
+        # Si el archivo existe lo actualiza, si no, lo crea (respetando los límites Free)
+        file_record = db.create_file(user_id=user_id, filename=filename, pseudocode=pseudocode)
+        if not file_record:
+            raise HTTPException(500, "Error saving file to cloud.")
+            
+        return {"status": "success", "file": file_record}
+    except PermissionError as pe:
+        raise HTTPException(403, str(pe))
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # --- COMPILADOR IA ---
 @app.post("/api/compile")

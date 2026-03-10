@@ -182,7 +182,10 @@
         </aside>
 
         <div class="editor-container">
-            <div class="editor-tools">
+            <div class="editor-tools" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end;">
+                <button id="btn-save-file" class="btn-icon" onclick="saveCurrentFile()" title="Save to Cloud">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                </button>
                 <select id="lang-select" class="lang-select" onchange="toggleLanguageMode()">
                     <option value="pseudocode">Natural Language</option>
                     <option value="python">Python (Native)</option>
@@ -717,6 +720,63 @@ builtins.input = custom_input
                 }
             } catch (e) {
                 console.error("Error loading files:", e);
+            }
+        }
+
+        async function saveCurrentFile() {
+            if (!sessionUser) {
+                openAuthModal("login", "Please login to save your files in the cloud.");
+                return;
+            }
+            
+            const activeFile = files.find(f => f.id === activeFileId);
+            if (!activeFile) return;
+
+            const btnSave = document.getElementById("btn-save-file");
+            const originalIcon = btnSave.innerHTML;
+            
+            // Ponemos el loader girando mientras guarda
+            btnSave.innerHTML = `<span class='loader' style="width:14px; height:14px; border-width: 2px;"></span>`;
+            btnSave.disabled = true;
+
+            try {
+                const payload = {
+                    user_id: sessionUser.id,
+                    filename: activeFile.name,
+                    pseudocode: activeFile.content
+                };
+
+                const res = await fetch(`${API_URL}/api/files/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                
+                if (!res.ok) {
+                    if (data.detail && (data.detail.includes("Plan Free") || data.detail.includes("limit"))) {
+                        showLimitModal(data.detail);
+                    } else {
+                        throw new Error(data.detail || "Error saving file");
+                    }
+                } else {
+                    // Si es un archivo nuevo creado en local (temp-123), el backend nos devuelve 
+                    // el ID UUID real de Supabase. Lo actualizamos para sincronizarlos.
+                    if (data.file && data.file.id && activeFile.id.startsWith("temp-")) {
+                        activeFile.id = data.file.id;
+                        activeFileId = data.file.id; 
+                    }
+                    
+                    // Efecto visual de éxito (tick verde)
+                    btnSave.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                    setTimeout(() => { btnSave.innerHTML = originalIcon; btnSave.disabled = false; }, 2000);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error saving file: " + err.message);
+                btnSave.innerHTML = originalIcon;
+                btnSave.disabled = false;
             }
         }
 
