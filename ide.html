@@ -537,10 +537,10 @@
             btnRun.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
         }
 
-        async function executePython(code) {
+        async function executePython(code, retryCount = 0) {
             try {
                 let localModules = [];
-                // 1. Sincronizar archivos al disco virtual de Pyodide y registrar sus nombres
+                // 1. Sincronizar archivos al disco virtual de Pyodide
                 files.forEach(f => { 
                     try { 
                         pyodide.FS.writeFile(f.name, f.content); 
@@ -550,13 +550,12 @@
                     } catch(e){} 
                 });
 
-                // 2. Configurar Python: Añadir ruta actual, limpiar caché de módulos locales y configurar consola interactiva
+                // 2. Configurar entorno interactivo y rutas
                 const interceptorSetup = `
 import sys, io, builtins, js
 if '.' not in sys.path:
     sys.path.insert(0, '.')
 
-# Limpiar caché de modulos locales para que los imports se actualicen si editas el archivo
 local_mods = [${localModules.join(',')}]
 for mod in local_mods:
     if mod in sys.modules:
@@ -570,6 +569,7 @@ builtins.input = custom_input
 `;
                 const fullExecutionCode = interceptorSetup + "\n" + code;
                 
+                // Pre-cargar dependencias nativas detectadas automáticamente
                 await pyodide.loadPackagesFromImports(fullExecutionCode);
                 await pyodide.runPythonAsync(fullExecutionCode);
                 
@@ -580,7 +580,43 @@ builtins.input = custom_input
                 if (stderr) printText(stderr, "error");
 
                 syncPyodideFS();
-            } catch (err) { printText(err.message, "error"); }
+            } catch (err) { 
+                // --- GESTOR DE PAQUETES A DEMANDA (MODO PROFESIONAL) ---
+                const errMsg = err.message;
+                const match = errMsg.match(/ModuleNotFoundError: No module named '([^']+)'/);
+                
+                if (match && match[1] && retryCount < 5) {
+                    const missingPkg = match[1];
+                    
+                    // Prevenir bucles si el error es de un archivo local eliminado
+                    if (files.some(f => f.name === `${missingPkg}.py`)) {
+                         printText(errMsg, "error"); return;
+                    }
+
+                    // Notificación de sistema en consola y actualización de UI
+                    printText(`[System] Missing dependency detected: '${missingPkg}'. Installing from PyPI...`, "ai");
+                    btnRun.innerHTML = `<span class='loader' style="width:14px; height:14px; border-width: 2px;"></span> Installing ${missingPkg}...`;
+                    
+                    try {
+                        await pyodide.loadPackage("micropip");
+                        const micropip = pyodide.pyimport("micropip");
+                        
+                        // Instalación en tiempo real en la memoria virtual
+                        await micropip.install(missingPkg);
+                        
+                        printText(`[System] Package '${missingPkg}' installed successfully. Resuming execution...\n`, "ai");
+                        
+                        // Reanudación automática
+                        await executePython(code, retryCount + 1); 
+                    } catch (installErr) {
+                        const cleanError = installErr.message.split('\n').slice(-2).join(' ').trim();
+                        printText(`[System Error] Failed to install '${missingPkg}'. Ensure the package is pure Python and available on PyPI.\nDetails: ${cleanError}`, "error");
+                    }
+                } else {
+                    // Impresión de errores estándar
+                    printText(errMsg, "error"); 
+                }
+            }
         }
 
         function syncPyodideFS() {
