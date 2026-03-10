@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NullCode IDE</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/darcula.min.css" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
@@ -368,10 +372,34 @@
             updateAuthUI();
             renderFiles();
             
-            try {
-                pyodide = await loadPyodide();
-                toggleLanguageMode(); 
-            } catch (err) { printText("System failure loading engine.", "error"); }
+            if (typeof SharedArrayBuffer === "undefined") {
+                printText("[System Error] Your browser or server does not support SharedArrayBuffer. Ensure Cross-Origin Isolation headers are enabled.", "error");
+            } else {
+                const sab = new SharedArrayBuffer(1024 * 10); // 10KB
+                inputInt32View = new Int32Array(sab, 0, 1);
+                inputEncodedView = new Uint8Array(sab, 4);
+
+                pyodideWorker = new Worker("worker.js");
+                pyodideWorker.postMessage({ type: "init", buffer: sab });
+
+                pyodideWorker.onmessage = (e) => {
+                    const data = e.data;
+                    if (data.type === "init_done") { toggleLanguageMode(); }
+                    else if (data.type === "print") { printText(data.text, data.color); }
+                    else if (data.type === "request_input") { window.terminal_input(); }
+                    else if (data.type === "installing") {
+                        printText(`[System] Missing dependency detected: '${data.pkg}'. Installing from PyPI...`, "ai");
+                        btnRun.innerHTML = `<span class='loader' style="width:14px; height:14px; border-width: 2px;"></span> Installing ${data.pkg}...`;
+                    }
+                    else if (data.type === "run_done" || data.type === "run_error") {
+                        if (data.type === "run_error") printText(data.error, "error");
+                        if (data.files) syncFilesFromWorker(data.files);
+                        
+                        setButtonsState(false, "Compile");
+                        btnRun.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
+                    }
+                };
+            }
         };
 
         function updateAuthUI() {
@@ -537,150 +565,6 @@
             btnRun.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
         }
 
-        async function executePython(code, retryCount = 0) {
-            try {
-                let localModules = [];
-                // 1. Sincronizar archivos al disco virtual de Pyodide
-                files.forEach(f => { 
-                    try { 
-                        pyodide.FS.writeFile(f.name, f.content); 
-                        if(f.name.endsWith('.py')) {
-                            localModules.push(`'${f.name.replace('.py', '')}'`);
-                        }
-                    } catch(e){} 
-                });
-
-                // 2. Configurar entorno interactivo y rutas
-                const interceptorSetup = `
-import sys, io, builtins, js
-if '.' not in sys.path:
-    sys.path.insert(0, '.')
-
-local_mods = [${localModules.join(',')}]
-for mod in local_mods:
-    if mod in sys.modules:
-        del sys.modules[mod]
-
-sys.stdout = io.StringIO()
-sys.stderr = io.StringIO()
-async def custom_input(prompt_text=""):
-    return await js.window.terminal_input(prompt_text)
-builtins.input = custom_input
-`;
-                const fullExecutionCode = interceptorSetup + "\n" + code;
-                
-                // Pre-cargar dependencias nativas detectadas automáticamente
-                await pyodide.loadPackagesFromImports(fullExecutionCode);
-                await pyodide.runPythonAsync(fullExecutionCode);
-                
-                const stdout = pyodide.runPython("sys.stdout.getvalue()");
-                const stderr = pyodide.runPython("sys.stderr.getvalue()");
-
-                if (stdout) printText(stdout, "output");
-                if (stderr) printText(stderr, "error");
-
-                syncPyodideFS();
-            } catch (err) { 
-                // --- GESTOR DE PAQUETES A DEMANDA (MODO PROFESIONAL) ---
-                const errMsg = err.message;
-                const match = errMsg.match(/ModuleNotFoundError: No module named '([^']+)'/);
-                
-                if (match && match[1] && retryCount < 5) {
-                    const missingPkg = match[1];
-                    
-                    // Prevenir bucles si el error es de un archivo local eliminado
-                    if (files.some(f => f.name === `${missingPkg}.py`)) {
-                         printText(errMsg, "error"); return;
-                    }
-
-                    // Notificación de sistema en consola y actualización de UI
-                    printText(`[System] Missing dependency detected: '${missingPkg}'. Installing from PyPI...`, "ai");
-                    btnRun.innerHTML = `<span class='loader' style="width:14px; height:14px; border-width: 2px;"></span> Installing ${missingPkg}...`;
-                    
-                    try {
-                        await pyodide.loadPackage("micropip");
-                        const micropip = pyodide.pyimport("micropip");
-                        
-                        // Instalación en tiempo real en la memoria virtual
-                        await micropip.install(missingPkg);
-                        
-                        printText(`[System] Package '${missingPkg}' installed successfully. Resuming execution...\n`, "ai");
-                        
-                        // Reanudación automática
-                        await executePython(code, retryCount + 1); 
-                    } catch (installErr) {
-                        const cleanError = installErr.message.split('\n').slice(-2).join(' ').trim();
-                        printText(`[System Error] Failed to install '${missingPkg}'. Ensure the package is pure Python and available on PyPI.\nDetails: ${cleanError}`, "error");
-                    }
-                } else {
-                    // Impresión de errores estándar
-                    printText(errMsg, "error"); 
-                }
-            }
-        }
-
-        function syncPyodideFS() {
-            try {
-                const currentDir = pyodide.FS.readdir('.');
-                let hitLimit = false;
-
-                for (const name of currentDir) {
-                    if (name === '.' || name === '..') continue;
-                    const stat = pyodide.FS.stat(name);
-                    if (pyodide.FS.isDir(stat.mode)) continue;
-
-                    const content = pyodide.FS.readFile(name, { encoding: "utf8" });
-                    const existingFile = files.find(f => f.name === name);
-
-                    if (existingFile) {
-                        if (existingFile.content !== content) {
-                            existingFile.content = content;
-                            if (activeFileId === existingFile.id) cmEditor.setValue(content);
-                        }
-                    } else {
-                        if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) {
-                            hitLimit = true;
-                        } else {
-                            const newId = `temp-${Date.now()}-${Math.random()}`;
-                            files.push({ id: newId, name: name, content: content, type: "file", parentId: null, translated_code: "" });
-                        }
-                    }
-                }
-                if (hitLimit) showLimitModal("Your script generated new files, but Free accounts are limited to 3. Some were discarded.");
-                renderFiles();
-            } catch (e) { console.error("Error syncing virtual FS:", e); }
-        }
-
-        // --- NATIVE TERMINAL ---
-        window.custom_prompt = function(promptText) { return window.terminal_input(promptText); };
-        window.terminal_input = function(promptText) {
-            return new Promise((resolve) => {
-                const lineWrap = document.createElement("div");
-                lineWrap.style.display = "flex"; lineWrap.style.alignItems = "center"; lineWrap.style.marginTop = "4px"; lineWrap.style.fontFamily = "inherit"; 
-                
-                const promptSpan = document.createElement("span");
-                promptSpan.textContent = promptText; promptSpan.style.color = "#a8b2d1"; promptSpan.style.whiteSpace = "pre-wrap"; promptSpan.style.fontFamily = "inherit";
-                
-                const inputField = document.createElement("input");
-                inputField.type = "text"; inputField.style.background = "transparent"; inputField.style.border = "none"; inputField.style.color = "white"; inputField.style.outline = "none"; inputField.style.flex = "1"; inputField.style.fontFamily = "inherit"; inputField.style.fontSize = "inherit"; inputField.style.marginLeft = "8px";
-                
-                lineWrap.appendChild(promptSpan); lineWrap.appendChild(inputField); consoleOutput.appendChild(lineWrap);
-                document.querySelector(".output-scroll").scrollTop = document.querySelector(".output-scroll").scrollHeight;
-                inputField.focus();
-                
-                inputField.addEventListener("keydown", function(e) {
-                    if (e.key === "Enter") {
-                        const val = inputField.value;
-                        lineWrap.removeChild(inputField);
-                        const answerSpan = document.createElement("span");
-                        answerSpan.textContent = val; answerSpan.style.color = "#4caf50"; answerSpan.style.marginLeft = "8px";
-                        lineWrap.appendChild(answerSpan);
-                        resolve(val);
-                    }
-                });
-            });
-        };
-
         // --- BILLING & SETTINGS ---
         async function unlockAll() {
             if (!sessionUser) { openAuthModal("login", "Please login to upgrade."); return; }
@@ -705,6 +589,62 @@ builtins.input = custom_input
                 alert("Stripe Error: " + error.message); // Ahora te avisará del error real
             }
         }
+
+        function executePython(code) {
+            pyodideWorker.postMessage({
+                type: "run",
+                code: code,
+                files: files.map(f => ({ name: f.name, content: f.content }))
+            });
+        }
+
+        function syncFilesFromWorker(workerFiles) {
+            let hitLimit = false;
+            workerFiles.forEach(wf => {
+                const existingFile = files.find(f => f.name === wf.name);
+                if (existingFile) {
+                    if (existingFile.content !== wf.content) {
+                        existingFile.content = wf.content;
+                        if (activeFileId === existingFile.id) cmEditor.setValue(wf.content);
+                    }
+                } else {
+                    if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) { hitLimit = true; } 
+                    else {
+                        const newId = `temp-${Date.now()}-${Math.random()}`;
+                        files.push({ id: newId, name: wf.name, content: wf.content, type: "file", parentId: null, translated_code: "" });
+                    }
+                }
+            });
+            if (hitLimit) showLimitModal("Your script generated new files, but Free accounts are limited to 3.");
+            renderFiles();
+        }
+
+        // Terminal Nativa Sincronizada
+        window.terminal_input = function() {
+            const lineWrap = document.createElement("div");
+            lineWrap.style.display = "flex"; lineWrap.style.alignItems = "center"; lineWrap.style.marginTop = "4px"; 
+            
+            const inputField = document.createElement("input");
+            inputField.type = "text"; inputField.style.background = "transparent"; inputField.style.border = "none"; inputField.style.color = "white"; inputField.style.outline = "none"; inputField.style.flex = "1"; inputField.style.fontFamily = "inherit"; inputField.style.fontSize = "inherit"; 
+            
+            lineWrap.appendChild(inputField); consoleOutput.appendChild(lineWrap);
+            document.querySelector(".output-scroll").scrollTop = document.querySelector(".output-scroll").scrollHeight;
+            inputField.focus();
+            
+            inputField.addEventListener("keydown", function(e) {
+                if (e.key === "Enter") {
+                    const val = inputField.value;
+                    lineWrap.removeChild(inputField); // Eliminamos el input visual
+                    
+                    // Magia Negra: Escribimos en memoria compartida y despertamos al Worker
+                    const encoder = new TextEncoder();
+                    const encoded = encoder.encode(val);
+                    inputEncodedView.set(encoded);
+                    Atomics.store(inputInt32View, 0, encoded.length);
+                    Atomics.notify(inputInt32View, 0, 1);
+                }
+            });
+        };
 
         async function manageSubscription() {
             try {
