@@ -104,31 +104,44 @@ class DatabaseManager:
     # ==========================================
     # GESTIÓN DE ARCHIVOS (Sin proyectos)
     # ==========================================
-    def create_file(self, user_id: str, filename: str, pseudocode: str = "") -> dict:
-        # 1. Actualizar si ya existe
-        existing = self.supabase.table("files").select("id").eq("user_id", user_id).eq("filename", filename).execute().data
+    def create_file(self, user_id: str, filename: str, pseudocode: str = "", item_type: str = "file", parent_id: str = None) -> dict:
+        # 1. Actualizar si ya existe (buscamos por filename y parent_id para no sobreescribir archivos con el mismo nombre en distintas carpetas)
+        query = self.supabase.table("files").select("id").eq("user_id", user_id).eq("filename", filename)
+        if parent_id:
+            query = query.eq("parent_id", parent_id)
+        else:
+            query = query.is_("parent_id", "null")
+            
+        existing = query.execute().data
+        
         if existing:
             response = self.supabase.table("files").update({"pseudocode": pseudocode}).eq("id", existing[0]["id"]).execute()
             return response.data[0]
 
-        # 2. Validar límites de usuarios Free al crear archivos nuevos
+        # 2. Validar límites de usuarios Free al crear cosas nuevas
         user_response = self.supabase.table("users").select("plan").eq("id", user_id).execute()
         plan = user_response.data[0]["plan"]
 
         if plan == "free":
-            if len(pseudocode.split('\n')) > 10:
+            if item_type == "folder":
+                raise PermissionError("Plan Free: Folders are a Premium feature.")
+            if item_type == "file" and len(pseudocode.split('\n')) > 10:
                 raise PermissionError("Plan Free: Your code exceeds the 10 lines limit.")
                 
-            existing_files = self.supabase.table("files").select("id").eq("user_id", user_id).execute().data
-            if len(existing_files) >= 3:
+            # Solo contamos archivos (no carpetas) para el límite de 3
+            existing_files = self.supabase.table("files").select("id").eq("user_id", user_id).eq("item_type", "file").execute().data
+            if item_type == "file" and len(existing_files) >= 3:
                 raise PermissionError("Plan Free: You can only have 3 files maximum.")
 
         try:
-            response = self.supabase.table("files").insert({
+            data_to_insert = {
                 "user_id": user_id,
                 "filename": filename,
-                "pseudocode": pseudocode
-            }).execute()
+                "pseudocode": pseudocode,
+                "item_type": item_type,
+                "parent_id": parent_id
+            }
+            response = self.supabase.table("files").insert(data_to_insert).execute()
             return response.data[0]
         except Exception as e:
             return None

@@ -58,23 +58,6 @@ async def signup_user(request: Request):
     except Exception as e:
         raise HTTPException(400, str(e))
 
-@app.post("/api/auth/signup")
-async def signup_user(request: Request):
-    data = await request.json()
-    email, password = data.get("email"), data.get("password")
-    
-    if not email or not password: 
-        raise HTTPException(400, "Email and password are required.")
-    
-    try:
-        user = db.create_user(email, password)
-        if not user: 
-            raise HTTPException(500, "Error creating account.")
-        return user
-    except Exception as e:
-        # Pass the Supabase Auth error directly to the frontend
-        raise HTTPException(400, str(e))
-
 # --- ARCHIVOS ---
 @app.delete("/api/files/{file_id}")
 async def delete_file(file_id: str):
@@ -101,14 +84,14 @@ async def save_file_manual(request: Request):
     user_id = data.get("user_id")
     filename = data.get("filename")
     pseudocode = data.get("pseudocode", "")
+    item_type = data.get("item_type", "file")
+    parent_id = data.get("parent_id") # Puede ser nulo
     
     if not user_id or not filename:
         raise HTTPException(400, "Missing user_id or filename")
         
     try:
-        # La función create_file de database.py ya es lista: 
-        # Si el archivo existe lo actualiza, si no, lo crea (respetando los límites Free)
-        file_record = db.create_file(user_id=user_id, filename=filename, pseudocode=pseudocode)
+        file_record = db.create_file(user_id=user_id, filename=filename, pseudocode=pseudocode, item_type=item_type, parent_id=parent_id)
         if not file_record:
             raise HTTPException(500, "Error saving file to cloud.")
             

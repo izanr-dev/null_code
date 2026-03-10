@@ -130,6 +130,20 @@
         .settings-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 0.9rem;}
         .settings-row:last-child { border-bottom: none; }
         .settings-label { color: var(--text-muted); }
+
+        /* DROPDOWN LATERAL Y EXPLORADOR ESTILO VS CODE */
+        .sidebar-dropdown { position: relative; display: inline-block; }
+        .sidebar-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; z-index: 100; min-width: 190px; box-shadow: 0 8px 16px rgba(0,0,0,0.8); overflow: hidden; }
+        .sidebar-menu.active { display: block; }
+        .sidebar-menu a { display: flex; align-items: center; gap: 10px; padding: 10px 15px; color: var(--text-main); text-decoration: none; font-size: 0.85rem; transition: 0.2s; }
+        .sidebar-menu a:hover { background: rgba(255,255,255,0.08); }
+        .sidebar-menu .divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+        .sidebar-menu .pro-badge { margin-left: auto; font-size: 0.65rem; background: var(--premium-bg); color: var(--premium); padding: 2px 6px; border-radius: 10px; font-weight: bold; border: 1px solid var(--premium); }
+        
+        .file-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; }
+        .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; }
+        .folder-item { font-weight: 600; color: #ccc; }
     </style>
 </head>
 <body>
@@ -173,9 +187,26 @@
                     <button class="btn-icon" onclick="triggerImport()" title="Import File">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     </button>
-                    <button class="btn-icon" onclick="openNewFileModal()" title="New File">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    </button>
+                    <div class="sidebar-dropdown">
+                        <button class="btn-icon" onclick="toggleNewItemMenu(event)" title="New Item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                        <div class="sidebar-menu" id="sidebar-new-menu">
+                            <a href="#" onclick="createNewItem('py')">
+                                <span class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3776AB" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path><text x="12" y="16" font-size="9" text-anchor="middle" fill="#3776AB" font-family="Arial" font-weight="bold" stroke-width="0">py</text></svg></span> Python File (.py)
+                            </a>
+                            <a href="#" onclick="createNewItem('nc')">
+                                <span class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4" ry="4"></rect><text x="12" y="15.5" font-size="9" text-anchor="middle" fill="#4caf50" font-family="monospace" font-weight="bold" stroke-width="0">NC</text></svg></span> NullCode File (.nc)
+                            </a>
+                            <a href="#" onclick="createNewItem('txt')">
+                                <span class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></span> Blank File
+                            </a>
+                            <div class="divider"></div>
+                            <a href="#" onclick="createNewItem('folder')">
+                                <span class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#e1b12c" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span> Folder <span class="pro-badge">PRO</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="file-list" id="file-list"></div>
@@ -708,14 +739,18 @@ builtins.input = custom_input
                         id: f.id,
                         name: f.filename,
                         content: f.pseudocode || "",
-                        translated_code: f.translated_code || ""
+                        translated_code: f.translated_code || "",
+                        type: f.item_type || "file",      // Leemos de la BBDD
+                        parentId: f.parent_id || null     // Leemos de la BBDD
                     }));
                     
-                    activeFileId = files[0].id;
-                    cmEditor.setValue(files[0].content);
-                    codeViewer.value = files[0].translated_code; // Restaurar el código compilado
-                    
-                    if (files[0].translated_code) btnRun.disabled = false;
+                    const firstFile = files.find(f => f.type === "file");
+                    if (firstFile) {
+                        activeFileId = firstFile.id;
+                        cmEditor.setValue(firstFile.content);
+                        codeViewer.value = firstFile.translated_code; 
+                        if (firstFile.translated_code) btnRun.disabled = false;
+                    }
                     renderFiles();
                 }
             } catch (e) {
@@ -724,18 +759,12 @@ builtins.input = custom_input
         }
 
         async function saveCurrentFile() {
-            if (!sessionUser) {
-                openAuthModal("login", "Please login to save your files in the cloud.");
-                return;
-            }
-            
+            if (!sessionUser) { openAuthModal("login", "Please login to save your files."); return; }
             const activeFile = files.find(f => f.id === activeFileId);
-            if (!activeFile) return;
+            if (!activeFile || activeFile.type === "folder") return;
 
             const btnSave = document.getElementById("btn-save-file");
             const originalIcon = btnSave.innerHTML;
-            
-            // Ponemos el loader girando mientras guarda
             btnSave.innerHTML = `<span class='loader' style="width:14px; height:14px; border-width: 2px;"></span>`;
             btnSave.disabled = true;
 
@@ -743,41 +772,23 @@ builtins.input = custom_input
                 const payload = {
                     user_id: sessionUser.id,
                     filename: activeFile.name,
-                    pseudocode: activeFile.content
+                    pseudocode: activeFile.content,
+                    item_type: activeFile.type,
+                    parent_id: activeFile.parentId
                 };
 
-                const res = await fetch(`${API_URL}/api/files/save`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
+                const res = await fetch(`${API_URL}/api/files/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
                 
                 if (!res.ok) {
-                    if (data.detail && (data.detail.includes("Plan Free") || data.detail.includes("limit"))) {
-                        showLimitModal(data.detail);
-                    } else {
-                        throw new Error(data.detail || "Error saving file");
-                    }
+                    if (data.detail && (data.detail.includes("Plan Free") || data.detail.includes("limit"))) showLimitModal(data.detail);
+                    else throw new Error(data.detail || "Error saving file");
                 } else {
-                    // Si es un archivo nuevo creado en local (temp-123), el backend nos devuelve 
-                    // el ID UUID real de Supabase. Lo actualizamos para sincronizarlos.
-                    if (data.file && data.file.id && activeFile.id.startsWith("temp-")) {
-                        activeFile.id = data.file.id;
-                        activeFileId = data.file.id; 
-                    }
-                    
-                    // Efecto visual de éxito (tick verde)
+                    if (data.file && data.file.id && activeFile.id.startsWith("temp-")) { activeFile.id = data.file.id; activeFileId = data.file.id; }
                     btnSave.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
                     setTimeout(() => { btnSave.innerHTML = originalIcon; btnSave.disabled = false; }, 2000);
                 }
-            } catch (err) {
-                console.error(err);
-                alert("Error saving file: " + err.message);
-                btnSave.innerHTML = originalIcon;
-                btnSave.disabled = false;
-            }
+            } catch (err) { alert("Error: " + err.message); btnSave.innerHTML = originalIcon; btnSave.disabled = false; }
         }
 
         // --- UI TOOLS ---
@@ -807,39 +818,117 @@ builtins.input = custom_input
             document.querySelector(".output-scroll").scrollTop = document.querySelector(".output-scroll").scrollHeight;
         }
 
-        // --- FILES (Import / Export / Manage) ---
-        function renderFiles() {
-            const list = document.getElementById("file-list");
-            list.innerHTML = "";
-            files.forEach(f => {
-                const el = document.createElement("div");
-                el.className = `file-item ${f.id === activeFileId ? "active" : ""}`;
-                el.innerText = f.name;
-                el.onclick = () => { 
-                activeFileId = f.id; 
-                cmEditor.setValue(f.content); 
-                codeViewer.value = f.translated_code || ""; // Carga el código IA del archivo
-                btnRun.disabled = !f.translated_code && langSelect.value !== "python";
-                renderFiles(); 
-                };
-                el.oncontextmenu = (e) => showContextMenu(e, f);
-                list.appendChild(el);
-            });
-        }
-
         let contextFile = null;
         function showContextMenu(e, file) { e.preventDefault(); contextFile = file; contextMenu.style.left = `${e.pageX}px`; contextMenu.style.top = `${e.pageY}px`; contextMenu.classList.add("active"); }
         document.addEventListener("click", () => contextMenu.classList.remove("active"));
 
-        function openNewFileModal() {
-            if ((!sessionUser || sessionUser.plan === "free") && files.length >= 3) { showLimitModal("Free accounts are limited to 3 files simultaneously."); return; }
-            showModal("New File", "Enter filename (e.g., config.txt)", true, false, [
+        // --- ATAJOS DE TECLADO ---
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault(); // Evita que se abra la ventana de guardar de Windows/Mac
+                if (typeof saveCurrentFile === 'function') saveCurrentFile();
+            }
+        });
+
+        // --- LÓGICA DEL MENÚ DESPLEGABLE Y CARPETAS ---
+        function toggleNewItemMenu(e) {
+            e.stopPropagation();
+            document.getElementById("sidebar-new-menu").classList.toggle("active");
+        }
+        
+        document.addEventListener("click", () => {
+            const menu = document.getElementById("sidebar-new-menu");
+            if (menu) menu.classList.remove("active");
+        });
+
+        function createNewItem(type) {
+            // Contamos solo los archivos (excluyendo carpetas) para el límite Free
+            const fileCount = files.filter(f => !f.isFolder).length;
+            
+            if ((!sessionUser || sessionUser.plan === "free") && fileCount >= 3 && type !== "folder") {
+                showLimitModal("Free accounts are limited to 3 files simultaneously. Upgrade to create more.");
+                return;
+            }
+
+            if (type === "folder" && (!sessionUser || sessionUser.plan === "free")) {
+                showLimitModal("Folders are a Premium feature. Please upgrade to organize your projects with subfolders.");
+                return;
+            }
+
+            let title, placeholder, ext;
+            if (type === "folder") { title = "New Folder"; placeholder = "src"; ext = ""; }
+            else if (type === "py") { title = "New Python File"; placeholder = "script.py"; ext = ".py"; }
+            else if (type === "nc") { title = "New NullCode File"; placeholder = "logic.nc"; ext = ".nc"; }
+            else { title = "New File"; placeholder = "data.txt"; ext = ""; }
+
+            showModal(title, "Enter name:", true, false, [
                 { text: "Create", class: "btn-primary", action: () => {
-                    const name = document.getElementById("modal-input").value.trim();
-                    if(name) { const newId = `temp-${Date.now()}`; files.push({ id: newId, name: name, content: "" }); activeFileId = newId; cmEditor.setValue(""); renderFiles(); }
+                    let name = document.getElementById("modal-input").value.trim();
+                    if (name) {
+                        if (ext && !name.endsWith(ext)) name += ext;
+                        
+                        const isFolder = (type === "folder");
+                        const newItem = { 
+                            id: (isFolder ? "folder-" : "temp-") + Date.now(), 
+                            name: name, 
+                            content: "", 
+                            type: isFolder ? "folder" : "file",
+                            parentId: null, // De momento se crean en la raíz
+                            translated_code: "" 
+                        };
+                        files.push(newItem);
+                        
+                        if (!isFolder) {
+                            activeFileId = newItem.id;
+                            cmEditor.setValue("");
+                        }
+                        renderFiles();
+
+                        // Guardado inmediato en BD si es carpeta
+                        if (isFolder && sessionUser) {
+                            fetch(`${API_URL}/api/files/save`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ user_id: sessionUser.id, filename: name, pseudocode: "", item_type: "folder", parent_id: null })
+                            }).then(r => r.json()).then(d => { if(d.file && d.file.id) newItem.id = d.file.id; });
+                        }
+                    }
                     closeModal(); 
-                }}, { text: "Cancel", class: "btn-secondary", action: closeModal }
-            ], "filename.pse"); 
+                }}, 
+                { text: "Cancel", class: "btn-secondary", action: closeModal }
+            ], placeholder);
+        }
+
+        // --- RENDERIZADO DEL EXPLORADOR (ESTILO VS CODE) ---
+        function getFileIcon(filename, isFolder) {
+            if (isFolder) return `<svg viewBox="0 0 24 24" fill="none" stroke="#e1b12c" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+            if (filename.endsWith('.py')) return `<svg viewBox="0 0 24 24" fill="none" stroke="#3776AB" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path><text x="12" y="16" font-size="9" text-anchor="middle" fill="#3776AB" font-family="Arial" font-weight="bold" stroke-width="0">py</text></svg>`;
+            if (filename.endsWith('.nc')) return `<svg viewBox="0 0 24 24" fill="none" stroke="#4caf50" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4" ry="4"></rect><text x="12" y="15.5" font-size="9" text-anchor="middle" fill="#4caf50" font-family="monospace" font-weight="bold" stroke-width="0">NC</text></svg>`;
+            return `<svg viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`;
+        }
+
+        function renderFiles() {
+            const list = document.getElementById("file-list");
+            list.innerHTML = "";
+            const sortedFiles = [...files].sort((a, b) => {
+                if (a.type === b.type) return a.name.localeCompare(b.name);
+                return a.type === "folder" ? -1 : 1;
+            });
+
+            sortedFiles.forEach(f => {
+                const el = document.createElement("div");
+                el.className = `file-item ${f.id === activeFileId && f.type === "file" ? "active" : ""} ${f.type === "folder" ? "folder-item" : ""}`;
+                el.innerHTML = `<span class="file-icon">${getFileIcon(f.name, f.type === "folder")}</span> <span class="file-name">${f.name}</span>`;
+                el.onclick = () => { 
+                    if (f.type !== "folder") {
+                        activeFileId = f.id; cmEditor.setValue(f.content || ""); 
+                        codeViewer.value = f.translated_code || ""; 
+                        btnRun.disabled = !f.translated_code && langSelect.value !== "python";
+                        renderFiles(); 
+                    }
+                };
+                el.oncontextmenu = (e) => showContextMenu(e, f);
+                list.appendChild(el);
+            });
         }
 
         function openRenameModal() {
