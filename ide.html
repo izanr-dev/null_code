@@ -84,19 +84,26 @@
         .editor-tools { padding: 10px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; }
         .lang-select { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 5px 10px; border-radius: 4px; outline: none; font-size: 0.85rem; cursor: pointer; }
         
-        /* TIPOGRAFÍA Y ESTILOS DEL EDITOR */
+        /* TIPOGRAFÍA Y ESTILOS DEL EDITOR (ESTILO VS CODE) */
         .CodeMirror { 
             flex: 1; 
             background: transparent !important; 
             height: auto; 
-            font-family: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', ui-monospace, SFMono-Regular, monospace; 
+            font-family: 'Consolas', 'Cascadia Code', 'Menlo', 'Monaco', 'Courier New', monospace; 
             font-size: 1.05rem; 
             line-height: 1.7; 
-            letter-spacing: 0.5px; 
+            letter-spacing: 0.8px; /* Interletrado aumentado */
             padding: 10px 0; 
         }
-        .CodeMirror-activeline-background { background: rgba(255, 255, 255, 0.04) !important; }
-        .CodeMirror-activeline-gutter { background: rgba(255, 255, 255, 0.02) !important; }
+        
+        /* RESALTE MÁS VISIBLE DE LA LÍNEA ACTIVA */
+        .CodeMirror-activeline-background { 
+            background: rgba(255, 255, 255, 0.09) !important; /* Más opacidad para que se vea mejor */
+        }
+        .CodeMirror-activeline-gutter { 
+            background: rgba(255, 255, 255, 0.06) !important; 
+        }
+        
         .CodeMirror-gutters { background: transparent !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
         .CodeMirror-linenumber { color: #555 !important; }
         .CodeMirror-foldmarker { color: #888; text-shadow: none; font-family: arial; font-size: 1.2rem; cursor: pointer; }
