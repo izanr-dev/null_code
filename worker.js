@@ -24,20 +24,44 @@ self.read_input_from_buffer = () => {
 
 async function executeCode(code, files, retryCount = 0) {
     try {
-        // 1. Sincronizar archivos al disco virtual
+        // 1. Sincronizar archivos al disco virtual con subcarpetas
         let localModules = [];
+        
+        function getFullPath(filesArray, fileObj) {
+            if (!fileObj.parentId) return fileObj.name;
+            const parent = filesArray.find(f => f.id === fileObj.parentId);
+            return parent ? getFullPath(filesArray, parent) + '/' + fileObj.name : fileObj.name;
+        }
+
         files.forEach(f => {
-            try { 
-                pyodide.FS.writeFile(f.name, f.content); 
-                if(f.name.endsWith('.py')) localModules.push(`'${f.name.replace('.py', '')}'`);
-            } catch(e){}
+            try {
+                const fullPath = getFullPath(files, f);
+                const parts = fullPath.split('/');
+                
+                let currentPath = "";
+                for (let i = 0; i < parts.length - 1; i++) {
+                    currentPath += (currentPath ? "/" : "") + parts[i];
+                    try { pyodide.FS.mkdir(currentPath); } catch (e) {} 
+                    // Auto-crear __init__.py para que Python lo reconozca como módulo
+                    try { pyodide.FS.writeFile(currentPath + '/__init__.py', ''); } catch (e) {} 
+                }
+
+                // Escribir el archivo real
+                pyodide.FS.writeFile(fullPath, f.content);
+                
+                // Si es Python, lo guardamos para limpiar su caché luego
+                if (fullPath.endsWith('.py')) {
+                    localModules.push(`'${fullPath.replace(/\.py$/, '').replace(/\//g, '.')}'`);
+                }
+            } catch(e) { console.error(e); }
         });
 
         // 2. Interceptor de Consola en Tiempo Real y Entradas Síncronas
         const setup = `
 import sys, builtins, js
+if "." not in sys.path: sys.path.append(".")
 
-# Limpieza de caché local
+# Limpieza de caché local para que los imports reflejen los cambios
 for mod in [${localModules.join(',')}] :
     if mod in sys.modules: del sys.modules[mod]
 
@@ -74,13 +98,28 @@ builtins.input = custom_input
         
         pyodide.runPython("sys.stdout.flush(); sys.stderr.flush()");
 
-        // 4. Leer archivos resultantes y devolver al Main
+        // 4. Leer archivos resultantes (recursivamente) y devolver al navegador (ide.html)
         let outFiles = [];
-        for (const name of pyodide.FS.readdir('.')) {
-            if (name !== '.' && name !== '..' && !pyodide.FS.isDir(pyodide.FS.stat(name).mode)) {
-                outFiles.push({ name, content: pyodide.FS.readFile(name, {encoding: "utf8"})});
+        
+        function readDirRecursively(dirPath) {
+            const items = pyodide.FS.readdir(dirPath);
+            for (const name of items) {
+                if (name === '.' || name === '..' || name.startsWith('__pycache__')) continue;
+                
+                const fullPath = dirPath === '.' ? name : dirPath + '/' + name;
+                const stat = pyodide.FS.stat(fullPath);
+                
+                if (pyodide.FS.isDir(stat.mode)) {
+                    readDirRecursively(fullPath);
+                } else {
+                    // Ignorar los __init__.py vacíos que creamos nosotros por debajo
+                    if (name === '__init__.py') continue;
+                    outFiles.push({ name: fullPath, content: pyodide.FS.readFile(fullPath, {encoding: "utf8"})});
+                }
             }
         }
+        
+        readDirRecursively('.');
         postMessage({ type: "run_done", files: outFiles });
 
     } catch (err) {
@@ -90,7 +129,11 @@ builtins.input = custom_input
         
         if (match && match[1] && retryCount < 5) {
             const missingPkg = match[1];
-            if (files.some(f => f.name === `${missingPkg}.py`)) { postMessage({ type: "run_error", error: errMsg }); return; }
+            // Si el módulo que falta es un archivo nuestro, no intentamos instalarlo de pip
+            if (files.some(f => f.name === `${missingPkg}.py` || f.name.includes(`${missingPkg}/`))) { 
+                postMessage({ type: "run_error", error: errMsg }); 
+                return; 
+            }
 
             postMessage({ type: "installing", pkg: missingPkg });
             try {
