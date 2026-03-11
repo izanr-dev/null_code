@@ -263,10 +263,13 @@
     </header>
 
     <main style="position: relative;">
-        <aside class="sidebar hidden" id="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <span>Files</span>
                 <div class="sidebar-tools">
+                    <button class="btn-icon" onclick="loadUserFiles()" title="Refresh Files">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                    </button>
                     <button class="btn-icon" onclick="triggerImport()" title="Import File">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     </button>
@@ -298,17 +301,16 @@
         <div class="resizer resizer-x" id="drag-sidebar"></div>
 
         <div class="editor-container">
-            <div class="editor-tools" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end;">
-                <button id="btn-save-file" class="btn-icon" onclick="saveCurrentFile()" title="Save to Cloud">
+            <div class="editor-tools" style="display: flex; align-items: center; justify-content: space-between;">
+                <button id="btn-save-file" class="btn-icon" onclick="saveCurrentFile()" title="Save to Cloud" style="border: 1px solid transparent; padding: 4px 6px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                 </button>
+                
                 <select id="lang-select" class="lang-select" onchange="toggleLanguageMode()">
                     <option value="pseudocode">Natural Language</option>
                     <option value="python">Python (Native)</option>
                 </select>
             </div>
-            <textarea id="editor" spellcheck="false" placeholder="Write your logic here..."></textarea>
-        </div>
 
         <div class="resizer resizer-x" id="drag-output" style="display: none;"></div>
 
@@ -1108,11 +1110,21 @@
                 el.className = `file-item ${f.id === activeFileId && f.type === "file" ? "active" : ""} ${f.type === "folder" ? "folder-item" : ""}`;
                 el.style.paddingLeft = `${12 + (level * 15)}px`; // Jerarquía visual
                 
-                // Contenedor de ancho fijo para la flecha, garantizando alineación perfecta
-                const arrowIcon = f.type === "folder" ? "▼" : "";
-                const arrowHtml = `<span class="folder-arrow" style="font-size: 0.55rem; width: 14px; display: inline-block; text-align: center; opacity: 0.7; flex-shrink: 0;">${arrowIcon}</span>`;
+                // Alineación VS Code: Justificado a la izquierda estricto
+                el.style.justifyContent = "flex-start"; 
                 
-                el.innerHTML = `${arrowHtml}<span class="file-icon">${getFileIcon(f.name, f.type === "folder")}</span> <span class="file-name">${f.name}</span>`;
+                const arrowIcon = f.type === "folder" ? "▼" : "";
+                const arrowHtml = `<span class="folder-arrow" style="font-size: 0.55rem; width: 14px; display: inline-block; text-align: left; opacity: 0.7; flex-shrink: 0;">${arrowIcon}</span>`;
+                
+                el.innerHTML = `
+                    ${arrowHtml}
+                    <span class="file-icon" style="margin-right: 4px; display: flex; align-items: center;">
+                        ${getFileIcon(f.name, f.type === "folder")}
+                    </span> 
+                    <span class="file-name" style="text-align: left; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${f.name}
+                    </span>
+                `;
                 
                 // Drag & Drop
                 el.draggable = true;
