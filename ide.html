@@ -23,6 +23,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/brace-fold.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/indent-fold.min.js" crossorigin="anonymous"></script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+
     <style>
         :root {
             --bg-color: #030303; --panel-bg: #0a0a0a; --border-color: #1f1f1f;
@@ -114,22 +116,21 @@
         .CodeMirror-hint-active { background: rgba(255,255,255,0.08); color: var(--accent); font-weight: bold; }
 
         /* OUTPUT PANEL (Split Layout) */
-        /* OUTPUT PANEL (Split Layout) */
-        .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--panel-bg); position: relative; min-width: 0; transition: flex 0.3s, width 0.3s; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--panel-bg); position: relative; min-width: 0; transition: flex 0.3s; }
         .right-panel.collapsed { flex: 0 0 0px !important; min-width: 0; overflow: hidden; border-left: none; }
-        .resizer-x { width: 5px; background: var(--border-color); cursor: col-resize; transition: background 0.2s; z-index: 10; flex-shrink: 0; }
+        
+        /* Cursor arreglado (ew-resize) y z-index más alto */
+        .resizer-x { width: 6px; background: var(--border-color); cursor: ew-resize; transition: background 0.2s; z-index: 50; flex-shrink: 0; }
         .resizer-x:hover, .resizer-x.dragging { background: var(--accent); }
         
-        .btn-minimize { position: absolute; top: 16px; right: 58px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 4px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
-        .btn-minimize:hover { color: var(--accent); border-color: var(--text-muted); background: rgba(255,255,255,0.05); }
-        .btn-eye { position: absolute; top: 16px; right: 16px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 4px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; transition: 0.2s;}
-        .btn-eye:hover { color: var(--accent); border-color: var(--text-muted); background: rgba(255,255,255,0.05); }
+        /* Botones Flotantes Permanentes */
+        .btn-toggle-panel { position: absolute; top: 16px; right: 16px; background: var(--panel-bg); border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 4px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .btn-toggle-panel:hover { color: var(--accent); border-color: var(--text-muted); background: rgba(255,255,255,0.1); }
+        .btn-eye { position: absolute; top: 16px; right: 58px; background: var(--panel-bg); border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 4px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .btn-eye:hover { color: var(--accent); border-color: var(--text-muted); background: rgba(255,255,255,0.1); }
 
-        
-        
-        .output-scroll { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; }
-        #ui-container { margin-bottom: 15px; }
-        #console-output { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; color: #a8b2d1; }
+        /* Más padding arriba para que el texto de la terminal no quede debajo de los botones */
+        .output-scroll { flex: 1; overflow-y: auto; padding: 60px 24px 24px 24px; display: flex; flex-direction: column; }
         
         /* BOTTOM RIGHT QUARTER (Code Viewer) */
         #code-viewer-container { display: none; height: 50%; border-top: 1px solid var(--border-color); background: #0c0c0c; flex-direction: column; }
@@ -261,7 +262,7 @@
         </div>
     </header>
 
-    <main>
+    <main style="position: relative;">
         <aside class="sidebar hidden" id="sidebar">
             <div class="sidebar-header">
                 <span>Files</span>
@@ -294,6 +295,8 @@
             <div class="file-list" id="file-list"></div>
         </aside>
 
+        <div class="resizer resizer-x" id="drag-sidebar"></div>
+
         <div class="editor-container">
             <div class="editor-tools" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end;">
                 <button id="btn-save-file" class="btn-icon" onclick="saveCurrentFile()" title="Save to Cloud">
@@ -307,14 +310,9 @@
             <textarea id="editor" spellcheck="false" placeholder="Write your logic here..."></textarea>
         </div>
 
+        <div class="resizer resizer-x" id="drag-output" style="display: none;"></div>
+
         <div class="right-panel collapsed">
-            <button class="btn-minimize" onclick="toggleOutputPanel()" title="Minimize Output" style="display: none;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-            <button class="btn-eye" onclick="toggleCode()" title="Toggle Code Viewer">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            </button>
-            
             <div class="output-scroll">
                 <div id="ui-container"></div>
                 <div id="console-output"></div>
@@ -330,6 +328,13 @@
                 <textarea id="code-viewer" spellcheck="false" readonly></textarea>
             </div>
         </div>
+
+        <button id="btn-eye" class="btn-eye" style="display: none;" onclick="toggleCode()" title="Toggle Code Viewer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </button>
+        <button id="btn-toggle-panel" class="btn-toggle-panel" onclick="toggleOutputPanel()" title="Maximize Output">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
     </main>
 
     <div class="context-menu" id="context-menu">
@@ -487,8 +492,8 @@
 
         function updateEditorUI() {
             const activeFile = files.find(f => f.id === activeFileId);
-            const btnEye = document.querySelector(".btn-eye");
-            
+            const btnEye = document.getElementById("btn-eye");
+
             if (!activeFile || activeFile.type === "folder") {
                 // Estado vacío o carpeta seleccionada: Ocultar todo y bloquear editor
                 langSelect.style.display = "none";
@@ -1102,9 +1107,11 @@
                 el.className = `file-item ${f.id === activeFileId && f.type === "file" ? "active" : ""} ${f.type === "folder" ? "folder-item" : ""}`;
                 el.style.paddingLeft = `${12 + (level * 15)}px`; // Jerarquía visual
                 
-                // Flechita si es carpeta para simular que se puede abrir/cerrar
-                const arrow = f.type === "folder" ? `<span style="font-size: 0.7rem; margin-right: 4px;">▼</span>` : ``;
-                el.innerHTML = `${arrow}<span class="file-icon">${getFileIcon(f.name, f.type === "folder")}</span> <span class="file-name">${f.name}</span>`;
+                // Contenedor de ancho fijo para la flecha, garantizando alineación perfecta
+                const arrowIcon = f.type === "folder" ? "▼" : "";
+                const arrowHtml = `<span class="folder-arrow" style="font-size: 0.55rem; width: 14px; display: inline-block; text-align: center; opacity: 0.7; flex-shrink: 0;">${arrowIcon}</span>`;
+                
+                el.innerHTML = `${arrowHtml}<span class="file-icon">${getFileIcon(f.name, f.type === "folder")}</span> <span class="file-name">${f.name}</span>`;
                 
                 // Drag & Drop
                 el.draggable = true;
@@ -1134,8 +1141,9 @@
                         // Lógica básica de plegado (alternar visibilidad del contenedor hijo)
                         const childContainer = el.nextElementSibling;
                         if(childContainer && childContainer.classList.contains("folder-children")) {
-                            childContainer.style.display = childContainer.style.display === "none" ? "block" : "none";
-                            el.querySelector("span").innerText = childContainer.style.display === "none" ? "▶" : "▼";
+                            const isHidden = childContainer.style.display === "none";
+                            childContainer.style.display = isHidden ? "block" : "none";
+                            el.querySelector(".folder-arrow").innerText = isHidden ? "▼" : "▶";
                         }
                     }
                 };
@@ -1193,27 +1201,59 @@
             reader.readAsText(file);
         }
 
-        function handleExportContext() {
-            const blob = new Blob([contextFile.content], { type: "text/plain" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url; a.download = contextFile.name;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        async function handleExportContext() {
+            if (contextFile.type === "folder") {
+                const zip = new JSZip();
+                
+                // Función recursiva para meter archivos en sus subcarpetas
+                function addFilesToZip(parentId, currentFolder) {
+                    const children = files.filter(f => f.parentId === parentId);
+                    children.forEach(child => {
+                        if (child.type === "folder") {
+                            const subFolder = currentFolder.folder(child.name);
+                            addFilesToZip(child.id, subFolder);
+                        } else {
+                            currentFolder.file(child.name, child.content || "");
+                        }
+                    });
+                }
+                
+                addFilesToZip(contextFile.id, zip);
+                
+                const content = await zip.generateAsync({ type: "blob" });
+                const url = URL.createObjectURL(content);
+                const a = document.createElement("a");
+                a.href = url; a.download = `${contextFile.name}.zip`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                
+            } else {
+                // Descarga normal de archivo
+                const blob = new Blob([contextFile.content || ""], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = contextFile.name;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            }
         }
 
         // --- PANEL & RESIZE LOGIC ---
         function toggleOutputPanel(forceOpen = null) {
             const panel = document.querySelector(".right-panel");
-            const btnMin = document.querySelector(".btn-minimize");
+            const btnToggle = document.getElementById("btn-toggle-panel");
+            const resizer = document.getElementById("drag-output");
             
             const shouldOpen = forceOpen !== null ? forceOpen : panel.classList.contains("collapsed");
             
             if (shouldOpen) {
                 panel.classList.remove("collapsed");
-                btnMin.style.display = "flex";
+                resizer.style.display = "block"; // Mostrar resizer
+                btnToggle.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+                btnToggle.title = "Minimize Output";
             } else {
                 panel.classList.add("collapsed");
-                btnMin.style.display = "none";
+                resizer.style.display = "none"; // Ocultar resizer para evitar clics accidentales
+                btnToggle.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+                btnToggle.title = "Maximize Output";
             }
         }
 
