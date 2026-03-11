@@ -60,14 +60,14 @@ class DatabaseManager:
         except Exception:
             return None
 
-    def update_stripe_data(self, email: str, customer_id: str, sub_id: str, status: str, plan: str) -> bool:
+    def update_stripe_data(self, user_id: str, customer_id: str, sub_id: str, status: str, plan: str) -> bool:
         try:
             self.supabase.table("users").update({
                 "stripe_customer_id": customer_id,
                 "stripe_subscription_id": sub_id,
                 "stripe_subscription_status": status,
                 "plan": plan
-            }).eq("email", email).execute()
+            }).eq("id", user_id).execute() # <-- AHORA BUSCAMOS POR ID
             return True
         except Exception:
             return False

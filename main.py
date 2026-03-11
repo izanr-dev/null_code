@@ -158,18 +158,38 @@ async def verify_session(session_id: str):
     """El frontend llama a esta ruta tras volver de pagar para validar el pago en tiempo real."""
     session = pagos.get_checkout_session(session_id)
     
-    if session and session.payment_status == "paid":
-        user_email = session.customer_details.email
-        customer_id = session.customer
-        sub_id = session.subscription
-        user_id = session.client_reference_id 
+    # Usar .get() es a prueba de balas para objetos de Stripe
+    if session and session.get("payment_status") == "paid":
+        customer_id = session.get("customer")
+        sub_id = session.get("subscription")
+        user_id = session.get("client_reference_id") 
         
         if user_id:
-            # Actualizamos la BBDD inmediatamente sin esperar al webhook
-            db.update_stripe_data(user_email, customer_id, sub_id, "active", "premium")
+            # Actualizamos la BBDD usando el user_id seguro
+            db.update_stripe_data(user_id, customer_id, sub_id, "active", "premium")
             return {"status": "success", "plan": "premium"}
             
     return {"status": "pending"}
+
+@app.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    event = pagos.verify_webhook(payload, sig_header)
+    
+    if event and event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("client_reference_id")
+        
+        if user_id:
+            db.update_stripe_data(
+                user_id = user_id, # <-- Pasamos el user_id en lugar del email
+                customer_id = session.get("customer"),
+                sub_id = session.get("subscription"),
+                status = "active", 
+                plan = "premium"
+            )
+    return JSONResponse(status_code=200, content={"status": "success"})
 
 @app.post("/webhook/stripe")
 async def stripe_webhook(request: Request):

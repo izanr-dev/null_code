@@ -19,7 +19,7 @@ class StripeManager:
             base_url = base_url.rstrip('/')
 
             # FORZAMOS a que vuelva a la raíz (index.html) para que Vercel no de 404
-            success_url = f"{base_url}/?session_id={{CHECKOUT_SESSION_ID}}"
+            success_url = f"{base_url}?session_id={{CHECKOUT_SESSION_ID}}"
             cancel_url = f"{base_url}/"
 
             session = stripe.checkout.Session.create(
