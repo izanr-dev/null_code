@@ -81,7 +81,12 @@ async def rename_file(file_id: str, request: Request):
 async def get_user_files(user_id: str):
     try:
         files = db.get_files_by_user(user_id)
-        return {"status": "success", "files": files}
+        
+        # Novedad: Comprobamos el plan actual del usuario en la BBDD
+        user_data = db.supabase.table("users").select("plan").eq("id", user_id).execute().data
+        current_plan = user_data[0]["plan"] if user_data else "free"
+        
+        return {"status": "success", "files": files, "plan": current_plan}
     except Exception as e:
         raise HTTPException(500, "Error fetching files.")
     
@@ -158,14 +163,19 @@ async def verify_session(session_id: str):
     """El frontend llama a esta ruta tras volver de pagar para validar el pago en tiempo real."""
     session = pagos.get_checkout_session(session_id)
     
-    # Usar .get() es a prueba de balas para objetos de Stripe
-    if session and session.get("payment_status") == "paid":
-        customer_id = session.get("customer")
-        sub_id = session.get("subscription")
-        user_id = session.get("client_reference_id") 
+    if not session:
+        return {"status": "pending"}
+        
+    # Extraemos usando getattr para ser 100% compatibles con la v14 de Stripe
+    is_paid = getattr(session, "payment_status", None) == "paid"
+    is_complete = getattr(session, "status", None) == "complete"
+    
+    if is_paid or is_complete:
+        customer_id = getattr(session, "customer", None)
+        sub_id = getattr(session, "subscription", None)
+        user_id = getattr(session, "client_reference_id", None) 
         
         if user_id:
-            # Actualizamos la BBDD usando el user_id seguro
             db.update_stripe_data(user_id, customer_id, sub_id, "active", "premium")
             return {"status": "success", "plan": "premium"}
             

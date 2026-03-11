@@ -879,14 +879,22 @@
                 const res = await fetch(`${API_URL}/api/files/${sessionUser.id}`);
                 const data = await res.json();
                 
+                // --- SINCRONIZACIÓN MÁGICA ---
+                // Si la BBDD dice que es premium pero el frontend pensaba que era free, se actualiza solo.
+                if (data.plan && sessionUser.plan !== data.plan) {
+                    sessionUser.plan = data.plan;
+                    localStorage.setItem("nullcode_user", JSON.stringify(sessionUser));
+                    updateAuthUI();
+                }
+                
                 if (data.status === "success" && data.files && data.files.length > 0) {
                     files = data.files.map(f => ({
                         id: f.id,
                         name: f.filename,
                         content: f.pseudocode || "",
                         translated_code: f.translated_code || "",
-                        type: f.item_type || "file",      // Leemos de la BBDD
-                        parentId: f.parent_id || null     // Leemos de la BBDD
+                        type: f.item_type || "file",      
+                        parentId: f.parent_id || null     
                     }));
                     
                     const firstFile = files.find(f => f.type === "file");
