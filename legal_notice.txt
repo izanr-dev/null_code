@@ -1,1 +1,27 @@
-Esto es una motherfucking prueba para el legal notice
+1. GENERAL INFORMATION
+In compliance with the duty of information established in Law 34/2002, of July 11, on Information Society Services and Electronic Commerce (LSSI-CE), the following general information about this website is provided:
+Owner: Izan Robles
+Tax Identification Number (NIF): 54479409E
+Registered Office: Calle de los Toreros nº 10, 28412, Cerceda (Madrid), Spain.
+Contact Email: izanrobles8@gmail.com
+Website URL: https://nullcode.one
+2. OBJECT AND SCOPE
+This Legal Notice governs the access, navigation, and use of the website https://nullcode.one (hereinafter, the "Platform"), which operates as an online Integrated Development Environment (IDE) enabling users to write, run, and execute Python code directly in their web browser, as well as access AI-assisted coding tools.
+
+3. INTELLECTUAL AND INDUSTRIAL PROPERTY
+All contents of the Platform, including but not limited to the source code, design, logos, text, graphics, and underlying software infrastructure (excluding third-party open-source technologies such as WebAssembly implementations or specific Python libraries), are owned by Izan Robles or his licensors, and are protected by intellectual property laws.
+
+The user is granted a limited, non-exclusive, non-transferable license to access and use the Platform in accordance with our Terms and Conditions. Any reproduction, distribution, public communication, or transformation of the Platform's core proprietary content without express authorization is strictly prohibited.
+
+4. DISCLAIMER OF LIABILITY
+Client-Side Execution (WebAssembly): The Platform utilizes WebAssembly to run Python code directly within the user's browser. Consequently, the execution of code relies on the local hardware and browser capabilities of the user. Izan Robles is not liable for any browser crashes, high local resource usage (CPU/RAM), or data loss on the user's device resulting from the execution of the user's own code.
+Artificial Intelligence (AI) Tools: The Platform integrates third-party AI models (provided by Deepseek) for code generation and assistance. AI-generated code and suggestions are provided "as is". Izan Robles makes no warranties regarding the accuracy, security, or efficiency of the AI-generated code. The user is solely responsible for reviewing, testing, and implementing any AI-generated output.
+Platform Availability: While we strive to maintain uninterrupted access, we do not guarantee continuous availability of the Platform and shall not be liable for downtimes caused by maintenance, third-party service failures (such as our database provider, Supabase, or payment processor, Stripe), or force majeure events.
+5. THIRD-PARTY SERVICES
+The Platform utilizes strictly necessary third-party services to function:
+Stripe: Used for processing subscription payments. We do not store your credit card information directly.
+Supabase: Used for database management and secure user authentication.
+Deepseek: Used as the API provider for our AI coding assistance features.
+Your interaction with the payment and authentication systems is also subject to the security and privacy policies of these respective providers.
+6. APPLICABLE LAW AND JURISDICTION
+This Legal Notice shall be governed by and interpreted in accordance with Spanish law. Any dispute arising from the access or use of the Platform shall be submitted to the exclusive jurisdiction of the courts of Madrid, Spain, without prejudice to any mandatory consumer protection rights that may apply.
