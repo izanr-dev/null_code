@@ -527,8 +527,9 @@
                 btnRun.style.display = "flex";
                 btnCompile.style.display = "flex";
                 btnRun.disabled = !activeFile.translated_code;
+                btnCompile.disabled = false; // <--- ESTA ES LA LÍNEA CLAVE
                 cmEditor.setOption("mode", "text/plain");
-            } 
+            }
             else if (name.endsWith(".txt")) {
                 langSelect.style.display = "none";
                 btnEye.style.display = "none";
