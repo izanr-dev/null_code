@@ -201,24 +201,6 @@ async def stripe_webhook(request: Request):
             )
     return JSONResponse(status_code=200, content={"status": "success"})
 
-@app.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
-    payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
-    event = pagos.verify_webhook(payload, sig_header)
-    
-    if event and event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        user_id = session.get("client_reference_id")
-        if user_id:
-            db.update_stripe_data(
-                email = session.get("customer_details", {}).get("email"),
-                customer_id = session.get("customer"),
-                sub_id = session.get("subscription"),
-                status = "active", plan = "premium"
-            )
-    return JSONResponse(status_code=200, content={"status": "success"})
-
 @app.post("/api/billing")
 async def billing_portal(request: Request):
     data = await request.json()

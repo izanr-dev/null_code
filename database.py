@@ -76,6 +76,9 @@ class DatabaseManager:
         """Comprueba, actualiza los límites diarios y devuelve el conteo actual."""
         user = self.supabase.table("users").select("plan, daily_compilations, last_compilation_date").eq("id", user_id).execute().data[0]
         
+        if not user.data:
+            raise PermissionError("User not found in database.")
+
         if user['plan'] in ['premium', 'unlimited']:
             return 0 # Sin límites
             

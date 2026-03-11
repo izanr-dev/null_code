@@ -312,6 +312,8 @@
                 </select>
             </div>
 
+            <textarea id="editor" style="display: none;"></textarea>
+
         <div class="resizer resizer-x" id="drag-output" style="display: none;"></div>
 
         <div class="right-panel collapsed">
@@ -363,6 +365,9 @@
         let sessionUser = null; 
         let files = [];
         let activeFileId = "null";
+        let pyodideWorker = null;
+        let inputInt32View = null;
+        let inputEncodedView = null;
         
         // DOM Elements
         const btnRun = document.getElementById("btn-run");
