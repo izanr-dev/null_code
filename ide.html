@@ -1017,8 +1017,7 @@
         });
 
         function createNewItem(type) {
-            // Contamos solo los archivos (excluyendo carpetas) para el límite Free
-            const fileCount = files.filter(f => !f.isFolder).length;
+            const fileCount = files.filter(f => f.type !== "folder").length;
             
             if ((!sessionUser || sessionUser.plan === "free") && fileCount >= 3 && type !== "folder") {
                 showLimitModal("Free accounts are limited to 3 files simultaneously. Upgrade to create more.");
@@ -1039,36 +1038,44 @@
 
             showModal(title, "Enter name:", true, false, [
                 { text: "Create", class: "btn-primary", action: () => {
-                    let name = document.getElementById("modal-input").value.trim();
-                    if (name) {
-                        if (ext && !name.endsWith(ext)) name += ext;
+                    try {
+                        let inputEl = document.getElementById("modal-input");
+                        if (!inputEl) throw new Error("No se encuentra la caja de texto");
                         
-                        const isFolder = (type === "folder");
-                        const newItem = { 
-                            id: (isFolder ? "folder-" : "temp-") + Date.now(), 
-                            name: name, 
-                            content: "", 
-                            type: isFolder ? "folder" : "file",
-                            parentId: null, // De momento se crean en la raíz
-                            translated_code: "" 
-                        };
-                        files.push(newItem);
-                        
-                        if (!isFolder) {
-                            activeFileId = newItem.id;
-                            cmEditor.setValue("");
-                        }
-                        renderFiles();
+                        let name = inputEl.value.trim();
+                        if (name) {
+                            if (ext && !name.endsWith(ext)) name += ext;
+                            
+                            const isFolder = (type === "folder");
+                            const newItem = { 
+                                id: (isFolder ? "folder-" : "temp-") + Date.now(), 
+                                name: name, 
+                                content: "", 
+                                type: isFolder ? "folder" : "file",
+                                parentId: null, // De momento se crean en la raíz
+                                translated_code: "" 
+                            };
+                            files.push(newItem);
+                            
+                            if (!isFolder) {
+                                activeFileId = newItem.id;
+                                cmEditor.setValue("");
+                            }
+                            renderFiles();
 
-                        // Guardado inmediato en BD si es carpeta
-                        if (isFolder && sessionUser) {
-                            fetch(`${API_URL}/api/files/save`, {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ user_id: sessionUser.id, filename: name, pseudocode: "", item_type: "folder", parent_id: null })
-                            }).then(r => r.json()).then(d => { if(d.file && d.file.id) newItem.id = d.file.id; });
+                            // Guardado inmediato en BD si es carpeta
+                            if (isFolder && sessionUser) {
+                                fetch(`${API_URL}/api/files/save`, {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ user_id: sessionUser.id, filename: name, pseudocode: "", item_type: "folder", parent_id: null })
+                                }).then(r => r.json()).then(d => { if(d.file && d.file.id) newItem.id = d.file.id; });
+                            }
                         }
+                        closeModal(); 
+                    } catch (err) {
+                        console.error("Error creating item:", err);
+                        alert("Error al crear el archivo: " + err.message); // Si falla algo, te avisará en pantalla
                     }
-                    closeModal(); 
                 }}, 
                 { text: "Cancel", class: "btn-secondary", action: closeModal }
             ], placeholder);
