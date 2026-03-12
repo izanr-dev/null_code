@@ -14,7 +14,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/api.nullcode.one/api
+            cd ~/api.nullcode.one/api/nullcode
             git pull origin main
             source ~/virtualenv/api.nullcode.one/api/3.11/bin/activate
             pip install -r requirements.txt
