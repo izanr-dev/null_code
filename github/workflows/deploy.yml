@@ -1,0 +1,21 @@
+name: Deploy to Spaceship
+on:
+  push:
+    branches: [ main ] # Se activa cuando haces push a main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/api.nullcode.one/api
+            git pull origin main
+            source ~/virtualenv/api.nullcode.one/api/3.11/bin/activate
+            pip install -r requirements.txt
+            touch tmp/restart.txt
