@@ -103,6 +103,18 @@ class DatabaseManager:
         }).eq("id", user_id).execute()
         
         return new_count
+    
+    def downgrade_user_by_subscription(self, sub_id: str) -> bool:
+        """Pasa al usuario al plan Free y marca su suscripción como cancelada."""
+        try:
+            self.supabase.table("users").update({
+                "plan": "free",
+                "stripe_subscription_status": "canceled"
+            }).eq("stripe_subscription_id", sub_id).execute()
+            return True
+        except Exception as e:
+            print(f"[ERROR DB] Haciendo downgrade: {e}")
+            return False
 
     # ==========================================
     # GESTIÓN DE ARCHIVOS (Sin proyectos)

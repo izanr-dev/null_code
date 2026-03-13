@@ -65,3 +65,10 @@ class StripeManager:
             return None
         except ValueError:
             return None
+        
+    def cancel_subscription_immediately(self, sub_id: str):
+        """Fuerza la cancelación inmediata en Stripe para evitar reintentos de cobro."""
+        try:
+            stripe.Subscription.delete(sub_id)
+        except Exception as e:
+            print(f"[ERROR STRIPE] Cancelando suscripción {sub_id}: {e}")

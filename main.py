@@ -187,18 +187,47 @@ async def stripe_webhook(request: Request):
     sig_header = request.headers.get("stripe-signature")
     event = pagos.verify_webhook(payload, sig_header)
     
-    if event and event["type"] == "checkout.session.completed":
+    if not event:
+        return JSONResponse(status_code=400, content={"status": "invalid_signature"})
+        
+    event_type = event["type"]
+    
+    # 1. COMPRA INICIAL EXITOSA
+    if event_type == "checkout.session.completed":
         session = event["data"]["object"]
         user_id = session.get("client_reference_id")
         
         if user_id:
             db.update_stripe_data(
-                user_id = user_id, # <-- Pasamos el user_id en lugar del email
+                user_id = user_id,
                 customer_id = session.get("customer"),
                 sub_id = session.get("subscription"),
                 status = "active", 
                 plan = "premium"
             )
+            
+    # 2. PAGO RECURRENTE FALLIDO (Sin saldo, tarjeta caducada, etc)
+    elif event_type == "invoice.payment_failed":
+        invoice = event["data"]["object"]
+        sub_id = invoice.get("subscription")
+        
+        if sub_id:
+            # Le quitamos el premium en nuestra Base de Datos inmediatamente
+            db.downgrade_user_by_subscription(sub_id)
+            # Matamos la suscripción en Stripe para no dejar deudas fantasmas
+            pagos.cancel_subscription_immediately(sub_id)
+
+    # 3. SUSCRIPCIÓN FINALIZADA COMPLETAMENTE
+    # Esto ocurre si cancela desde el portal de facturación.
+    # Stripe espera automáticamente al final del mes pagado y luego dispara este evento.
+    elif event_type == "customer.subscription.deleted":
+        subscription = event["data"]["object"]
+        sub_id = subscription.get("id")
+        
+        if sub_id:
+            # El mes ya acabó, le quitamos el premium
+            db.downgrade_user_by_subscription(sub_id)
+            
     return JSONResponse(status_code=200, content={"status": "success"})
 
 @app.post("/api/billing")

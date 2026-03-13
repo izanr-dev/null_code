@@ -907,12 +907,23 @@
                 const res = await fetch(`${API_URL}/api/files/${sessionUser.id}`);
                 const data = await res.json();
                 
-                // --- SINCRONIZACIÓN MÁGICA ---
-                // Si la BBDD dice que es premium pero el frontend pensaba que era free, se actualiza solo.
+                // --- SINCRONIZACIÓN MÁGICA Y NOTIFICACIONES ---
                 if (data.plan && sessionUser.plan !== data.plan) {
+                    const oldPlan = sessionUser.plan;
                     sessionUser.plan = data.plan;
                     localStorage.setItem("nullcode_user", JSON.stringify(sessionUser));
                     updateAuthUI();
+                    
+                    // Si ha bajado de Premium a Free, le avisamos
+                    if ((oldPlan === "premium" || oldPlan === "unlimited") && data.plan === "free") {
+                        showModal(
+                            "Subscription Ended", 
+                            "Your Unlimited subscription has ended or a payment failed. Your account has been securely moved to the Free plan.", 
+                            false, 
+                            false, 
+                            [{ text: "OK", class: "btn-primary", action: closeModal }]
+                        );
+                    }
                 }
                 
                 if (data.status === "success" && data.files && data.files.length > 0) {
