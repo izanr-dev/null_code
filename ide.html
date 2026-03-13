@@ -301,18 +301,17 @@
         <div class="resizer resizer-x" id="drag-sidebar"></div>
 
         <div class="editor-container">
-            <div class="editor-tools" style="display: flex; align-items: center; justify-content: space-between;">
-                <button id="btn-save-file" class="btn-icon" onclick="saveCurrentFile()" title="Save to Cloud" style="border: 1px solid transparent; padding: 4px 6px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                </button>
-                
-                <select id="lang-select" class="lang-select" onchange="toggleLanguageMode()">
-                    <option value="pseudocode">Natural Language</option>
-                    <option value="python">Python (Native)</option>
-                </select>
-            </div>
+    <div class="editor-tools" style="display: flex; align-items: center; justify-content: flex-start;">
+        <button id="btn-save-file" class="btn-icon" onclick="saveCurrentFile()" title="Save to Cloud" style="border: 1px solid transparent; padding: 4px 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        </button>
+        </div>
 
-            <textarea id="editor" style="display: none;"></textarea>
+    <div id="welcome-message" style="display: none; flex: 1; justify-content: center; align-items: center; color: var(--text-muted); font-size: 1.1rem; text-align: center; padding: 20px;">
+        Welcome to NullCode, to start, create or select a file from the explorer on the left.
+    </div>
+
+    <textarea id="editor" style="display: none;"></textarea>
 
         <div class="resizer resizer-x" id="drag-output" style="display: none;"></div>
 
@@ -465,7 +464,7 @@
 
                 pyodideWorker.onmessage = (e) => {
                     const data = e.data;
-                    if (data.type === "init_done") { toggleLanguageMode(); }
+                    if (data.type === "init_done") { console.log("Pyodide Ready"); }
                     else if (data.type === "print") { printText(data.text, data.color); }
                     else if (data.type === "request_input") { window.terminal_input(); }
                     else if (data.type === "installing") {
@@ -500,27 +499,45 @@
         function updateEditorUI() {
             const activeFile = files.find(f => f.id === activeFileId);
             const btnEye = document.getElementById("btn-eye");
+            const btnTogglePanel = document.getElementById("btn-toggle-panel");
+            const rightPanel = document.querySelector(".right-panel");
+            const welcomeMsg = document.getElementById("welcome-message");
+            const editorWrapper = cmEditor.getWrapperElement();
+            const editorTools = document.querySelector(".editor-tools");
 
+            // ESTADO VACÍO O CARPETA SELECCIONADA
             if (!activeFile || activeFile.type === "folder") {
-                // Estado vacío o carpeta seleccionada: Ocultar todo y bloquear editor
-                langSelect.style.display = "none";
                 btnRun.style.display = "none";
                 btnCompile.style.display = "none";
                 btnEye.style.display = "none";
+                btnTogglePanel.style.display = "none"; // Ocultamos el botón flotante de la terminal
+                rightPanel.style.display = "none";     // Ocultamos todo el panel derecho
+                editorTools.style.display = "none";    // Ocultamos la barra superior (botón guardar)
+                
+                editorWrapper.style.display = "none";  // Ocultamos CodeMirror
+                welcomeMsg.style.display = "flex";     // Mostramos mensaje de bienvenida
+                
                 cmEditor.setOption("readOnly", "nocursor");
                 cmEditor.setValue("");
                 codeViewer.value = "";
                 document.getElementById("code-viewer-container").classList.remove("visible");
+                document.getElementById("drag-output").style.display = "none"; 
                 return;
             }
 
-            // Desbloquear editor
+            // ESTADO ACTIVO: ARCHIVO SELECCIONADO
+            editorTools.style.display = "flex";
+            editorWrapper.style.display = "block";
+            welcomeMsg.style.display = "none";
+            btnTogglePanel.style.display = "flex";
+            rightPanel.style.display = "flex";
+            document.getElementById("drag-output").style.display = rightPanel.classList.contains("collapsed") ? "none" : "block";
+
             cmEditor.setOption("readOnly", false);
             const name = activeFile.name.toLowerCase();
 
-            // Lógica inteligente según extensión
+            // INTELIGENCIA POR EXTENSIÓN (Sin selectores)
             if (name.endsWith(".py")) {
-                langSelect.style.display = "none";
                 btnEye.style.display = "none";
                 btnRun.style.display = "flex";
                 btnCompile.style.display = "none";
@@ -529,43 +546,20 @@
                 document.getElementById("code-viewer-container").classList.remove("visible");
             } 
             else if (name.endsWith(".nc")) {
-                langSelect.style.display = "none";
                 btnEye.style.display = "flex";
                 btnRun.style.display = "flex";
                 btnCompile.style.display = "flex";
                 btnRun.disabled = !activeFile.translated_code;
-                btnCompile.disabled = false; // <--- ESTA ES LA LÍNEA CLAVE
+                btnCompile.disabled = false; 
                 cmEditor.setOption("mode", "text/plain");
             }
-            else if (name.endsWith(".txt")) {
-                langSelect.style.display = "none";
+            else {
+                // Archivos genéricos (.txt u otros)
                 btnEye.style.display = "none";
                 btnRun.style.display = "none";
                 btnCompile.style.display = "none";
                 cmEditor.setOption("mode", "text/plain");
                 document.getElementById("code-viewer-container").classList.remove("visible");
-            } 
-            else {
-                // Archivo genérico (sin extensión o desconocida) -> Mostrar selector
-                langSelect.style.display = "block";
-                btnEye.style.display = "none";
-                toggleLanguageMode(); 
-            }
-        }
-
-        function toggleLanguageMode() {
-            if (!pyodide) return;
-            const activeFile = files.find(f => f.id === activeFileId);
-            if (!activeFile) return;
-
-            // Solo aplicar si el selector está visible (archivos genéricos)
-            if (langSelect.style.display !== "none") {
-                const isPython = langSelect.value === "python";
-                btnCompile.style.display = isPython ? "none" : "flex";
-                btnRun.style.display = "flex";
-                btnRun.disabled = !isPython && !codeViewer.value;
-                btnCompile.disabled = isPython;
-                cmEditor.setOption("mode", isPython ? "python" : "text/plain");
             }
         }
 
@@ -634,10 +628,9 @@
             const activeFile = files.find(f => f.id === activeFileId);
             if (!activeFile) return;
 
-            // Inteligencia: Si es un .py O si el selector está en python
-            const isPython = activeFile.name.toLowerCase().endsWith(".py") || langSelect.value === "python";
+            // Ahora evaluamos estrictamente por la extensión
+            const isPython = activeFile.name.toLowerCase().endsWith(".py");
             
-            // Si es Python nativo, cogemos el texto del editor. Si es .nc, del panel traducido.
             let codeToRun = isPython ? cmEditor.getValue().trim() : codeViewer.value.trim();
             if (!codeToRun) return;
             
@@ -739,9 +732,17 @@
                     body: JSON.stringify({ email: sessionUser.email, return_url: returnUrl }) 
                 });
                 const data = await res.json();
-                if (res.ok && data.url) window.location.href = data.url;
-                else alert(data.detail || "Error loading billing portal.");
-            } catch (error) { alert("Network error connecting to billing portal."); }
+                
+                if (res.ok && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    closeModal();
+                    alert(data.detail || "No active subscription found. Error loading billing portal.");
+                }
+            } catch (error) { 
+                closeModal();
+                alert("Network error connecting to billing portal."); 
+            }
         }
 
         function openSettingsModal() {
@@ -985,12 +986,13 @@
         }
 
         function clearOutputs() { uiContainer.innerHTML = ""; consoleOutput.innerHTML = ""; }
+
         function setButtonsState(disabled, compileText, isRun = false) {
             btnCompile.disabled = disabled; btnRun.disabled = disabled;
             if(!isRun) btnCompile.innerHTML = disabled ? `<span class='loader'></span> ${compileText}` : compileText;
             if(isRun) btnRun.innerHTML = `<span class='loader'></span> ${compileText}`;
-            toggleLanguageMode(); 
         }
+
         function printText(text, type) {
             const span = document.createElement("div");
             span.style.color = type === "error" ? "var(--error)" : type === "ai" ? "#e5c07b" : "#a8b2d1";
